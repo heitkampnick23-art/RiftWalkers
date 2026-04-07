@@ -2,12 +2,10 @@ import Foundation
 import AVFoundation
 import SwiftUI
 
-// MARK: - AI Companion Guide
-// The "Rift Guide" — an AI companion that speaks through the device at key moments.
-// Researched: Navi from Zelda, Cortana from Halo, Ghost from Destiny.
-// Smart contextual tips + personality = emotional bond with the game.
-// Uses GPT-4o-mini via cloud proxy for dynamic, context-aware dialogue.
-// Uses AVSpeechSynthesizer for text-to-speech so the guide literally talks.
+// MARK: - AI Companion Guide (v2 — ElevenLabs Voice + Conversational AI)
+// The "Rift Guide" — Professor Valen, an AI companion who SPEAKS to you.
+// v2 upgrades: ElevenLabs high-quality voice, conversational GPT-4o-mini chat,
+// location-aware ambient narration, and emotional memory.
 
 final class AICompanionService: ObservableObject {
     static let shared = AICompanionService()
@@ -15,18 +13,32 @@ final class AICompanionService: ObservableObject {
     @Published var currentMessage: String?
     @Published var isVisible = false
     @Published var isSpeaking = false
+    @Published var isThinking = false
+    @Published var chatHistory: [CompanionMessage] = []
+    @Published var isChatOpen = false
 
-    private let synthesizer = AVSpeechSynthesizer()
+    private let voice = VoiceService.shared
     private let ai = AIContentService.shared
     private var lastHintTime: Date = .distantPast
-    private let minimumHintInterval: TimeInterval = 30 // Don't spam hints
-    private var spokenMessages: Set<String> = [] // Avoid repeating
-    private var delegate: SpeechDelegate?
+    private let minimumHintInterval: TimeInterval = 30
+    private var spokenMessages: Set<String> = []
+    private var conversationHistory: [[String: String]] = []
 
-    private init() {
-        delegate = SpeechDelegate(service: self)
-        synthesizer.delegate = delegate
+    private let proxyBaseURL = "https://riftwalkers-api.heitkampnick23.workers.dev"
+    private let session = URLSession.shared
+
+    // Location-aware narration
+    private var lastNarrationLocation: (lat: Double, lng: Double)?
+    private var narrationCooldown: Date = .distantPast
+
+    struct CompanionMessage: Identifiable {
+        let id = UUID()
+        let text: String
+        let isPlayer: Bool
+        let timestamp: Date
     }
+
+    private init() {}
 
     // MARK: - Contextual Hints (Triggered at smart moments)
 
@@ -64,11 +76,11 @@ final class AICompanionService: ObservableObject {
         } else {
             message = "Level \(level)! You're getting stronger. Keep exploring those rifts."
         }
-        speak(message, context: "levelup_\(level)")
+        speak(message, context: "levelup_\(level)", priority: .important)
     }
 
     func onFirstLaunch() {
-        speak("Welcome to RiftWalkers! Mythological rifts are opening all around you. Walk around to discover creatures from ancient legends. Tap one to begin your first capture!", context: "first_launch")
+        speak("Welcome to RiftWalkers! Mythological rifts are opening all around you. Walk around to discover creatures from ancient legends. Tap one to begin your first capture!", context: "first_launch", priority: .critical)
     }
 
     func onMapIdle() {
@@ -84,7 +96,7 @@ final class AICompanionService: ObservableObject {
     }
 
     func onRareSpawn(species: CreatureSpecies) {
-        speak("Rift surge detected! A rare \(species.name) has appeared nearby. Don't miss this one!", context: "rare_\(species.id)")
+        speak("Rift surge detected! A rare \(species.name) has appeared nearby. Don't miss this one!", context: "rare_\(species.id)", priority: .important)
     }
 
     func onBattleStart() {
@@ -104,47 +116,149 @@ final class AICompanionService: ObservableObject {
         }
     }
 
-    // MARK: - Dynamic AI Hints (GPT-4o-mini powered)
+    // MARK: - Location-Aware Ambient Narration
 
-    func generateDynamicHint(context: String) async {
-        let prompt = """
-        You are "Rift Guide", an AI companion in a Pokemon GO-style game called RiftWalkers \
-        where mythological creatures appear through dimensional rifts. Give a short (1-2 sentences), \
-        helpful, in-character gameplay tip. Context: \(context). Be enthusiastic but not annoying. \
-        Sound like a knowledgeable friend, not a tutorial bot.
-        """
-        if let hint = await ai.generateLore(for: SpeciesDatabase.shared.species.values.first!) {
+    func onLocationUpdate(latitude: Double, longitude: Double, mythology: Mythology?) {
+        // Only narrate if moved significantly (200m+) and not too recently
+        guard Date().timeIntervalSince(narrationCooldown) > 120 else { return }
+
+        if let last = lastNarrationLocation {
+            let distance = haversineDistance(lat1: last.lat, lng1: last.lng, lat2: latitude, lng2: longitude)
+            guard distance > 200 else { return }
+        }
+
+        lastNarrationLocation = (latitude, longitude)
+        narrationCooldown = Date()
+
+        let hour = Calendar.current.component(.hour, from: Date())
+        let timeContext: String
+        switch hour {
+        case 5..<8: timeContext = "dawn"
+        case 8..<12: timeContext = "morning"
+        case 12..<17: timeContext = "afternoon"
+        case 17..<20: timeContext = "dusk"
+        case 20..<23: timeContext = "evening"
+        default: timeContext = "night"
+        }
+
+        Task {
+            await generateAmbientNarration(mythology: mythology, timeOfDay: timeContext)
+        }
+    }
+
+    private func generateAmbientNarration(mythology: Mythology?, timeOfDay: String) async {
+        let mythStr = mythology?.rawValue ?? "mixed"
+        let context: [String: Any] = [
+            "playerLevel": ProgressionManager.shared.player.level,
+            "creaturesOwned": ProgressionManager.shared.player.creaturesCaught,
+            "currentMythology": mythStr,
+            "timeOfDay": timeOfDay,
+            "recentEvent": "exploring"
+        ]
+
+        let prompts = [
+            "Comment briefly on the \(timeOfDay) rift energy in this \(mythStr) territory.",
+            "Share a quick mythological fact about \(mythStr) creatures that appear at \(timeOfDay).",
+            "Give a short ambient observation about the rift activity nearby.",
+        ]
+
+        if let response = await askCompanionAPI(message: prompts.randomElement()!, context: context) {
             await MainActor.run {
-                speak(hint, context: "dynamic_\(context)")
+                speak(response, context: "ambient_\(Date().timeIntervalSince1970)", priority: .ambient)
             }
         }
     }
 
-    // MARK: - Speech Engine
+    // MARK: - Conversational AI (Ask Professor Valen)
 
-    func speak(_ message: String, context: String) {
-        // Don't repeat the same context
+    func askQuestion(_ question: String) async -> String? {
+        await MainActor.run {
+            isThinking = true
+            chatHistory.append(CompanionMessage(text: question, isPlayer: true, timestamp: Date()))
+        }
+
+        let context = buildGameContext()
+        let response = await askCompanionAPI(message: question, context: context)
+
+        await MainActor.run {
+            isThinking = false
+            if let response {
+                chatHistory.append(CompanionMessage(text: response, isPlayer: false, timestamp: Date()))
+                speak(response, context: "chat_\(Date().timeIntervalSince1970)")
+            }
+        }
+
+        return response
+    }
+
+    private func askCompanionAPI(message: String, context: [String: Any]) async -> String? {
+        do {
+            var request = URLRequest(url: URL(string: "\(proxyBaseURL)/v1/companion/chat")!)
+            request.httpMethod = "POST"
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let body: [String: Any] = [
+                "message": message,
+                "context": context,
+                "history": conversationHistory.suffix(6)
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, resp) = try await session.data(for: request)
+            guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let response = json["response"] as? String {
+                // Track conversation
+                conversationHistory.append(["role": "user", "content": message])
+                conversationHistory.append(["role": "assistant", "content": response])
+                if conversationHistory.count > 20 { conversationHistory.removeFirst(2) }
+                return response
+            }
+        } catch {
+            print("[Companion] Chat failed: \(error)")
+        }
+        return nil
+    }
+
+    private func buildGameContext() -> [String: Any] {
+        let player = ProgressionManager.shared.player
+        let hour = Calendar.current.component(.hour, from: Date())
+        let timeOfDay: String
+        switch hour {
+        case 5..<12: timeOfDay = "morning"
+        case 12..<17: timeOfDay = "afternoon"
+        case 17..<21: timeOfDay = "evening"
+        default: timeOfDay = "night"
+        }
+
+        return [
+            "playerLevel": player.level,
+            "creaturesOwned": player.creaturesCaught,
+            "timeOfDay": timeOfDay,
+        ]
+    }
+
+    // MARK: - Speech Engine (now uses VoiceService)
+
+    func speak(_ message: String, context: String, priority: VoiceService.VoicePriority = .normal) {
         guard !spokenMessages.contains(context) else { return }
         spokenMessages.insert(context)
 
         currentMessage = message
         withAnimation(.spring()) { isVisible = true }
+        isSpeaking = true
 
-        // Text-to-speech
+        // Use ElevenLabs voice
         if UserDefaults.standard.bool(forKey: "voiceGuideEnabled") != false {
-            let utterance = AVSpeechUtterance(string: message)
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-            utterance.rate = 0.52
-            utterance.pitchMultiplier = 1.1
-            utterance.volume = 0.8
-            synthesizer.speak(utterance)
-            isSpeaking = true
+            voice.speak(message, priority: priority)
         }
 
         // Auto-dismiss after reading time
         let readTime = max(4.0, Double(message.count) / 15.0)
         DispatchQueue.main.asyncAfter(deadline: .now() + readTime) { [weak self] in
             withAnimation(.spring()) { self?.isVisible = false }
+            self?.isSpeaking = false
         }
         lastHintTime = Date()
     }
@@ -155,9 +269,20 @@ final class AICompanionService: ObservableObject {
     }
 
     func dismiss() {
-        synthesizer.stopSpeaking(at: .word)
+        voice.stopSpeaking()
         withAnimation(.spring()) { isVisible = false }
         isSpeaking = false
+    }
+
+    // MARK: - Dynamic AI Hints (GPT-4o-mini powered)
+
+    func generateDynamicHint(context: String) async {
+        let ctx = buildGameContext()
+        if let hint = await askCompanionAPI(message: "Give a gameplay tip. Context: \(context)", context: ctx) {
+            await MainActor.run {
+                speak(hint, context: "dynamic_\(context)")
+            }
+        }
     }
 
     // MARK: - Hint Libraries
@@ -211,21 +336,17 @@ final class AICompanionService: ObservableObject {
             "Territories near you might be unclaimed. Capture one for passive resource income.",
         ]
     }
-}
 
-// MARK: - Speech Delegate
+    // MARK: - Haversine Distance
 
-private class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate {
-    weak var service: AICompanionService?
-
-    init(service: AICompanionService) {
-        self.service = service
-    }
-
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async {
-            self.service?.isSpeaking = false
-        }
+    private func haversineDistance(lat1: Double, lng1: Double, lat2: Double, lng2: Double) -> Double {
+        let R = 6371000.0
+        let dLat = (lat2 - lat1) * .pi / 180
+        let dLng = (lng2 - lng1) * .pi / 180
+        let a = sin(dLat/2) * sin(dLat/2) +
+                cos(lat1 * .pi / 180) * cos(lat2 * .pi / 180) *
+                sin(dLng/2) * sin(dLng/2)
+        return R * 2 * atan2(sqrt(a), sqrt(1-a))
     }
 }
 
@@ -254,13 +375,14 @@ struct RiftGuideOverlay: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text("Rift Guide")
+                            Text("Professor Valen")
                                 .font(.caption2.weight(.black))
                                 .foregroundStyle(.cyan)
                             if guide.isSpeaking {
-                                Image(systemName: "speaker.wave.2.fill")
+                                Image(systemName: "waveform")
                                     .font(.system(size: 8))
                                     .foregroundStyle(.cyan)
+                                    .symbolEffect(.variableColor.iterative)
                             }
                             Spacer()
                             Button(action: { guide.dismiss() }) {
@@ -278,11 +400,205 @@ struct RiftGuideOverlay: View {
                 .padding(12)
                 .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
                 .padding(.horizontal, 16)
-                .padding(.bottom, 90) // Above tab bar
+                .padding(.bottom, 90)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.4), value: guide.isVisible)
         .allowsHitTesting(guide.isVisible)
+    }
+}
+
+// MARK: - Companion Chat View (Full Conversation Screen)
+
+struct CompanionChatView: View {
+    @StateObject private var companion = AICompanionService.shared
+    @State private var inputText = ""
+    @FocusState private var isInputFocused: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Chat messages
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            // Welcome message
+                            if companion.chatHistory.isEmpty {
+                                VStack(spacing: 16) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                            .frame(width: 80, height: 80)
+                                        Image(systemName: "sparkle")
+                                            .font(.system(size: 36, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                    Text("Professor Valen")
+                                        .font(.title3.weight(.bold))
+                                        .foregroundStyle(.white)
+                                    Text("Your Rift Guide — ask me anything about creatures, strategy, mythology, or the rifts.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+
+                                    // Quick questions
+                                    VStack(spacing: 8) {
+                                        QuickQuestion("What should I evolve next?")
+                                        QuickQuestion("Tell me about Norse mythology")
+                                        QuickQuestion("Best strategy for PvP?")
+                                        QuickQuestion("What creatures are rare nearby?")
+                                    }
+                                }
+                                .padding(.top, 40)
+                            }
+
+                            ForEach(companion.chatHistory) { msg in
+                                ChatMessageBubble(message: msg)
+                                    .id(msg.id)
+                            }
+
+                            if companion.isThinking {
+                                HStack {
+                                    ThinkingDots()
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
+                                .id("thinking")
+                            }
+                        }
+                        .padding(.vertical)
+                    }
+                    .onChange(of: companion.chatHistory.count) { _, _ in
+                        if let last = companion.chatHistory.last {
+                            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                        }
+                    }
+                    .onChange(of: companion.isThinking) { _, thinking in
+                        if thinking {
+                            withAnimation { proxy.scrollTo("thinking", anchor: .bottom) }
+                        }
+                    }
+                }
+
+                // Input bar
+                HStack(spacing: 10) {
+                    TextField("Ask Professor Valen...", text: $inputText)
+                        .textFieldStyle(.plain)
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+                        .focused($isInputFocused)
+                        .onSubmit { sendMessage() }
+
+                    Button(action: sendMessage) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(inputText.isEmpty ? Color.secondary : Color.cyan)
+                    }
+                    .disabled(inputText.isEmpty || companion.isThinking)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+            }
+            .navigationTitle("Professor Valen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func sendMessage() {
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        inputText = ""
+
+        Task {
+            _ = await companion.askQuestion(text)
+        }
+    }
+
+    @ViewBuilder
+    private func QuickQuestion(_ text: String) -> some View {
+        Button {
+            inputText = text
+            sendMessage()
+        } label: {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.cyan)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.cyan.opacity(0.1), in: Capsule())
+                .overlay(Capsule().stroke(.cyan.opacity(0.3), lineWidth: 1))
+        }
+    }
+}
+
+// MARK: - Chat Bubble
+
+private struct ChatMessageBubble: View {
+    let message: AICompanionService.CompanionMessage
+
+    var body: some View {
+        HStack {
+            if message.isPlayer { Spacer(minLength: 60) }
+
+            VStack(alignment: message.isPlayer ? .trailing : .leading, spacing: 4) {
+                if !message.isPlayer {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.cyan)
+                        Text("Professor Valen")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.cyan)
+                    }
+                }
+
+                Text(message.text)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(
+                        message.isPlayer
+                            ? AnyShapeStyle(LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing))
+                            : AnyShapeStyle(Color.white.opacity(0.1)),
+                        in: RoundedRectangle(cornerRadius: 16)
+                    )
+            }
+
+            if !message.isPlayer { Spacer(minLength: 60) }
+        }
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Thinking Dots Animation
+
+private struct ThinkingDots: View {
+    @State private var animate = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkle")
+                .font(.system(size: 8))
+                .foregroundStyle(.cyan)
+            ForEach(0..<3) { i in
+                Circle()
+                    .fill(.cyan)
+                    .frame(width: 6, height: 6)
+                    .opacity(animate ? 1 : 0.3)
+                    .animation(.easeInOut(duration: 0.6).repeatForever().delay(Double(i) * 0.2), value: animate)
+            }
+        }
+        .padding(12)
+        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+        .onAppear { animate = true }
     }
 }

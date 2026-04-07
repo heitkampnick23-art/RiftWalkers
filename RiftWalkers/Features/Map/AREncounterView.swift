@@ -356,6 +356,15 @@ struct ARViewContainer: UIViewRepresentable {
     let speciesName: String
     let elementColor: Color
 
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    class Coordinator: NSObject, ARSessionDelegate {
+        func session(_ session: ARSession, didUpdate frame: ARFrame) {
+            // Feed camera frame to scene analysis for contextual spawning
+            SceneAnalysisService.shared.analyzePixelBuffer(frame.capturedImage)
+        }
+    }
+
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
 
@@ -363,6 +372,7 @@ struct ARViewContainer: UIViewRepresentable {
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal]
         config.environmentTexturing = .automatic
+        arView.session.delegate = context.coordinator
         arView.session.run(config)
 
         // Add creature anchor

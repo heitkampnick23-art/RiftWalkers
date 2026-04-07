@@ -48,6 +48,15 @@
 		A100000043 /* GuildDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000043 /* GuildDetailView.swift */; };
 		A100000044 /* PvPMatchmakingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000044 /* PvPMatchmakingView.swift */; };
 		A100000045 /* StoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000045 /* StoryView.swift */; };
+		A100000046 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000046 /* VoiceService.swift */; };
+		A100000047 /* SceneAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000047 /* SceneAnalysisService.swift */; };
+		A100000048 /* SocialPresenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000048 /* SocialPresenceService.swift */; };
+		A100000049 /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000049 /* WeatherService.swift */; };
+		A100000050 /* FitnessService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000051 /* FitnessService.swift */; };
+		A100000052 /* CreatorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000052 /* CreatorService.swift */; };
+		A100000053 /* LiDARService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000053 /* LiDARService.swift */; };
+		A100000054 /* AntiCheatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000054 /* AntiCheatService.swift */; };
+		A100000055 /* AccessibilityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000055 /* AccessibilityService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -95,6 +104,15 @@
 		B100000043 /* GuildDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuildDetailView.swift; sourceTree = "<group>"; };
 		B100000044 /* PvPMatchmakingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PvPMatchmakingView.swift; sourceTree = "<group>"; };
 		B100000045 /* StoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryView.swift; sourceTree = "<group>"; };
+		B100000046 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
+		B100000047 /* SceneAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneAnalysisService.swift; sourceTree = "<group>"; };
+		B100000048 /* SocialPresenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialPresenceService.swift; sourceTree = "<group>"; };
+		B100000049 /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
+		B100000051 /* FitnessService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessService.swift; sourceTree = "<group>"; };
+		B100000052 /* CreatorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatorService.swift; sourceTree = "<group>"; };
+		B100000053 /* LiDARService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiDARService.swift; sourceTree = "<group>"; };
+		B100000054 /* AntiCheatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntiCheatService.swift; sourceTree = "<group>"; };
+		B100000055 /* AccessibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityService.swift; sourceTree = "<group>"; };
 		B100000050 /* RiftWalkers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RiftWalkers.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -181,6 +199,15 @@
 				B100000034 /* AICompanionService.swift */,
 				B100000038 /* KeychainService.swift */,
 				B100000039 /* GamePersistenceService.swift */,
+				B100000046 /* VoiceService.swift */,
+				B100000047 /* SceneAnalysisService.swift */,
+				B100000048 /* SocialPresenceService.swift */,
+				B100000049 /* WeatherService.swift */,
+				B100000051 /* FitnessService.swift */,
+				B100000052 /* CreatorService.swift */,
+				B100000053 /* LiDARService.swift */,
+				B100000054 /* AntiCheatService.swift */,
+				B100000055 /* AccessibilityService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -429,6 +456,15 @@
 				A100000043 /* GuildDetailView.swift in Sources */,
 				A100000044 /* PvPMatchmakingView.swift in Sources */,
 				A100000045 /* StoryView.swift in Sources */,
+				A100000046 /* VoiceService.swift in Sources */,
+				A100000047 /* SceneAnalysisService.swift in Sources */,
+				A100000048 /* SocialPresenceService.swift in Sources */,
+				A100000049 /* WeatherService.swift in Sources */,
+				A100000050 /* FitnessService.swift in Sources */,
+				A100000052 /* CreatorService.swift in Sources */,
+				A100000053 /* LiDARService.swift in Sources */,
+				A100000054 /* AntiCheatService.swift in Sources */,
+				A100000055 /* AccessibilityService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

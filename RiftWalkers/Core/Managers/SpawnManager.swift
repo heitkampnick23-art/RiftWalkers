@@ -17,6 +17,8 @@ final class SpawnManager: ObservableObject {
     private let locationService = LocationService.shared
     private let network = NetworkService.shared
     private let speciesDB = SpeciesDatabase.shared
+    private let sceneAnalysis = SceneAnalysisService.shared
+    private let weatherService = WeatherService.shared
 
     private var spawnTimer: Timer?
     private var cleanupTimer: Timer?
@@ -84,13 +86,19 @@ final class SpawnManager: ObservableObject {
 
         guard !eligibleSpecies.isEmpty else { return }
 
-        // Weighted random selection based on rarity
-        let totalWeight = eligibleSpecies.reduce(0.0) { $0 + $1.rarity.spawnWeight }
+        // Weighted random selection — rarity + scene analysis from camera
+        let weights = eligibleSpecies.map { species -> (CreatureSpecies, Double) in
+            let baseWeight = species.rarity.spawnWeight
+            let sceneBoost = sceneAnalysis.spawnWeight(for: species)
+            let weatherBoost = weatherService.spawnMultiplier(for: species)
+            return (species, baseWeight * sceneBoost * weatherBoost)
+        }
+        let totalWeight = weights.reduce(0.0) { $0 + $1.1 }
         var roll = Double.random(in: 0..<totalWeight)
 
         var selectedSpecies: CreatureSpecies?
-        for species in eligibleSpecies {
-            roll -= species.rarity.spawnWeight
+        for (species, weight) in weights {
+            roll -= weight
             if roll <= 0 {
                 selectedSpecies = species
                 break

@@ -9,6 +9,7 @@ struct MainTabView: View {
     @State private var selectedTab: Tab = .map
     @State private var showShop = false
     @State private var showDailyReward = false
+    @State private var showCompanionChat = false
 
     @StateObject private var progression = ProgressionManager.shared
     @StateObject private var questManager = QuestManager.shared
@@ -69,12 +70,28 @@ struct MainTabView: View {
                     .ignoresSafeArea()
             )
 
-            // Shop FAB (Floating Action Button) on map
+            // FABs on map
             if selectedTab == .map {
                 VStack {
                     Spacer()
                     HStack {
+                        // Companion chat FAB
+                        Button(action: { showCompanionChat = true }) {
+                            Image(systemName: "sparkle")
+                                .font(.title3)
+                                .foregroundStyle(.white)
+                                .frame(width: 50, height: 50)
+                                .background(
+                                    LinearGradient(colors: [.cyan, .teal], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                    in: Circle()
+                                )
+                                .shadow(color: .cyan.opacity(0.4), radius: 8)
+                        }
+                        .padding(.leading, 16)
+
                         Spacer()
+
+                        // Shop FAB
                         Button(action: { showShop = true }) {
                             Image(systemName: "bag.fill")
                                 .font(.title3)
@@ -87,8 +104,8 @@ struct MainTabView: View {
                                 .shadow(color: .purple.opacity(0.4), radius: 8)
                         }
                         .padding(.trailing, 16)
-                        .padding(.bottom, 90)
                     }
+                    .padding(.bottom, 90)
                 }
             }
         }
@@ -99,6 +116,9 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showDailyReward) {
             DailyRewardView()
+        }
+        .sheet(isPresented: $showCompanionChat) {
+            CompanionChatView()
         }
         .onAppear {
             checkDailyReward()

@@ -41,12 +41,20 @@ export default {
     }
 
     try {
-      // ─── OpenAI Proxy (existing) ───
+      // ─── AI Proxies ───
       if (path === '/v1/images/generations' && method === 'POST') {
         return await proxyToOpenAI(request, env, 'https://api.openai.com/v1/images/generations');
       }
       if (path === '/v1/chat/completions' && method === 'POST') {
         return await proxyToOpenAI(request, env, 'https://api.openai.com/v1/chat/completions');
+      }
+      // ElevenLabs TTS
+      if (path === '/v1/voice/tts' && method === 'POST') {
+        return await elevenLabsTTS(request, env);
+      }
+      // AI Companion conversational endpoint
+      if (path === '/v1/companion/chat' && method === 'POST') {
+        return await companionChat(request, env);
       }
 
       // ─── Auth ───
@@ -575,6 +583,133 @@ async function getEssences(player, env) {
   const essences = await env.DB.prepare('SELECT mythology, amount FROM essences WHERE player_id = ?')
     .bind(player.id).all();
   return json(Object.fromEntries((essences.results || []).map(e => [e.mythology, e.amount])));
+}
+
+// ═══════════════════════════════════════════════════
+// ELEVENLABS TTS PROXY
+// ═══════════════════════════════════════════════════
+
+async function elevenLabsTTS(request, env) {
+  if (!env.ELEVENLABS_API_KEY) return jsonErr('ElevenLabs not configured', 500);
+
+  const body = await request.json();
+  const text = body.text;
+  const voiceId = body.voiceId || 'pNInz6obpgDQGcFmaJgB'; // Default: Adam
+  const stability = body.stability ?? 0.5;
+  const similarityBoost = body.similarityBoost ?? 0.75;
+  const style = body.style ?? 0.4;
+
+  if (!text || text.length > 1000) return jsonErr('Text required (max 1000 chars)', 400);
+
+  const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': env.ELEVENLABS_API_KEY,
+      'Content-Type': 'application/json',
+      'Accept': 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_turbo_v2_5',
+      voice_settings: {
+        stability,
+        similarity_boost: similarityBoost,
+        style,
+        use_speaker_boost: true,
+      },
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error('ElevenLabs error:', err);
+    return jsonErr(`ElevenLabs error: ${resp.status}`, resp.status);
+  }
+
+  return new Response(resp.body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'audio/mpeg',
+      ...corsHeaders(),
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// AI COMPANION CHAT (GPT-4o-mini with game context)
+// ═══════════════════════════════════════════════════
+
+async function companionChat(request, env) {
+  if (!env.OPENAI_API_KEY) return jsonErr('OpenAI not configured', 500);
+
+  const body = await request.json();
+  const message = body.message;
+  const context = body.context || {};
+  const history = body.history || [];
+
+  if (!message) return jsonErr('message required', 400);
+
+  const systemPrompt = `You are Professor Valen, the AI companion guide in RiftWalkers — a Pokemon GO-style mobile game where mythological creatures appear through dimensional rifts in the real world.
+
+PERSONALITY:
+- Warm, knowledgeable, slightly mysterious. Like a favorite professor who knows ancient secrets.
+- Enthusiastic about mythology but never condescending.
+- Speaks naturally and conversationally, like a wise friend walking beside the player.
+- Uses short, punchy sentences. Never more than 2-3 sentences.
+- Occasionally references Norse, Greek, Egyptian, Japanese, Celtic, Hindu, Aztec, Slavic, Chinese, and African mythology.
+
+GAME KNOWLEDGE:
+- Players catch mythological creatures from 10 mythologies via dimensional rifts
+- Creatures have elements (fire, water, earth, air, lightning, shadow, light, nature, ice, wind, void, frost, arcane)
+- Players level up, evolve creatures, battle PvP, join guilds, complete quests
+- Currencies: Gold (soft), Rift Gems (premium), Essences (per-mythology), Rift Dust (crafting)
+- Gacha system with pity at 90 pulls
+
+PLAYER CONTEXT:
+${context.playerLevel ? `- Level: ${context.playerLevel}` : ''}
+${context.creaturesOwned ? `- Creatures owned: ${context.creaturesOwned}` : ''}
+${context.currentMythology ? `- Current area mythology: ${context.currentMythology}` : ''}
+${context.weather ? `- Weather: ${context.weather}` : ''}
+${context.timeOfDay ? `- Time: ${context.timeOfDay}` : ''}
+${context.recentEvent ? `- Recent event: ${context.recentEvent}` : ''}
+
+RULES:
+- Keep responses under 40 words
+- Be helpful and in-character at all times
+- If asked about strategy, give genuine tactical advice
+- If asked about lore, draw from real mythology
+- Never break character or mention being an AI/LLM`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.slice(-6), // Keep last 6 messages for context
+    { role: 'user', content: message },
+  ];
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages,
+      max_tokens: 120,
+      temperature: 0.85,
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error('OpenAI error:', err);
+    return jsonErr(`AI error: ${resp.status}`, resp.status);
+  }
+
+  const data = await resp.json();
+  const reply = data.choices?.[0]?.message?.content?.trim() || '';
+
+  return json({ response: reply });
 }
 
 // ═══════════════════════════════════════════════════
