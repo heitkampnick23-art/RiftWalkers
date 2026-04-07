@@ -12,6 +12,7 @@ struct InventoryView: View {
     @State private var sortOption: SortOption = .combatPower
     @State private var filterMythology: Mythology?
     @State private var searchText = ""
+    @State private var showingDetail = false
 
     enum InventoryTab: String, CaseIterable {
         case creatures = "Creatures"
@@ -55,6 +56,26 @@ struct InventoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search...")
         }
+    }
+
+    // MARK: - Sorted/Filtered Owned Creatures
+
+    private var sortedCreatures: [Creature] {
+        var list = progression.ownedCreatures
+        if let myth = filterMythology {
+            list = list.filter { $0.mythology == myth }
+        }
+        if !searchText.isEmpty {
+            list = list.filter { $0.displayName.localizedCaseInsensitiveContains(searchText) }
+        }
+        switch sortOption {
+        case .combatPower: list.sort { $0.combatPower > $1.combatPower }
+        case .level: list.sort { $0.level > $1.level }
+        case .rarity: list.sort { $0.rarity.stars > $1.rarity.stars }
+        case .recent: list.sort { $0.captureDate > $1.captureDate }
+        case .name: list.sort { $0.displayName < $1.displayName }
+        }
+        return list
     }
 
     // MARK: - Creatures Tab
@@ -104,31 +125,74 @@ struct InventoryView: View {
 
             // Creature collection count
             HStack {
-                Text("\(progression.player.creaturesCaught) / \(SpeciesDatabase.shared.species.count) Species")
+                let owned = progression.ownedCreatures.count
+                let uniqueSpecies = Set(progression.ownedCreatures.map(\.speciesID)).count
+                Text("\(uniqueSpecies) / \(SpeciesDatabase.shared.species.count) Species (\(owned) total)")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("CP Range: —")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let maxCP = sortedCreatures.first?.combatPower,
+                   let minCP = sortedCreatures.last?.combatPower {
+                    Text("CP: \(minCP)-\(maxCP)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.horizontal)
             .padding(.bottom, 4)
 
-            // Creature grid
-            ScrollView {
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 8),
-                    GridItem(.flexible(), spacing: 8),
-                    GridItem(.flexible(), spacing: 8),
-                ], spacing: 8) {
-                    // Demo creatures for layout
-                    ForEach(0..<12, id: \.self) { i in
-                        CreatureGridCard(index: i)
-                    }
+            if sortedCreatures.isEmpty {
+                // Empty state
+                VStack(spacing: 16) {
+                    Image(systemName: "pawprint.fill")
+                        .font(.system(size: 50))
+                        .foregroundStyle(.secondary)
+                    Text("No creatures yet")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("Explore the world to find and capture mythological creatures!")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 80)
+                .padding(.top, 60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Creature card grid
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8),
+                    ], spacing: 8) {
+                        ForEach(sortedCreatures) { creature in
+                            NavigationLink(destination: CreatureDetailView(creature: creature)) {
+                                if let species = SpeciesDatabase.shared.getSpecies(creature.speciesID) {
+                                    ZStack(alignment: .topLeading) {
+                                        CreatureCardGridItem(
+                                            species: species,
+                                            creature: creature,
+                                            isShiny: creature.isShiny
+                                        )
+
+                                        // Evolution indicator
+                                        if creature.canEvolve {
+                                            Image(systemName: "arrow.triangle.2.circlepath")
+                                                .font(.system(size: 8, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .padding(4)
+                                                .background(species.mythology.color, in: Circle())
+                                                .offset(x: 4, y: 4)
+                                        }
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 80)
+                }
             }
         }
     }
@@ -174,74 +238,6 @@ struct InventoryView: View {
     }
 }
 
-// MARK: - Creature Grid Card
-
-struct CreatureGridCard: View {
-    let index: Int
-
-    private var demoSpecies: CreatureSpecies? {
-        let all = Array(SpeciesDatabase.shared.species.values)
-        guard index < all.count else { return nil }
-        return all[index]
-    }
-
-    var body: some View {
-        if let species = demoSpecies {
-            VStack(spacing: 4) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
-                                colors: [species.rarity.color.opacity(0.3), .black.opacity(0.3)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                        )
-
-                    VStack(spacing: 4) {
-                        Image(systemName: species.element.icon)
-                            .font(.system(size: 28))
-                            .foregroundStyle(species.element.color)
-
-                        // Rarity stars
-                        HStack(spacing: 1) {
-                            ForEach(0..<min(species.rarity.stars, 5), id: \.self) { _ in
-                                Image(systemName: "star.fill")
-                                    .font(.system(size: 6))
-                                    .foregroundStyle(species.rarity.color)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-
-                    // Mythology badge
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Image(systemName: species.mythology.icon)
-                                .font(.system(size: 8))
-                                .foregroundStyle(.white)
-                                .padding(4)
-                                .background(species.mythology.color.opacity(0.6), in: Circle())
-                        }
-                        Spacer()
-                    }
-                    .padding(4)
-                }
-                .frame(height: 90)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                Text(species.name)
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-
-                Text("CP —")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
 // MARK: - Item Row
 
 struct ItemRow: View {
@@ -275,10 +271,3 @@ struct ItemRow: View {
     }
 }
 
-// Make ItemType conform to CaseIterable for filtering
-extension ItemType: CaseIterable {
-    static var allCases: [ItemType] {
-        [.captureSphere, .potion, .revive, .booster, .lure, .incense,
-         .evolutionStone, .craftingMaterial, .equipment, .key, .food, .cosmetic]
-    }
-}

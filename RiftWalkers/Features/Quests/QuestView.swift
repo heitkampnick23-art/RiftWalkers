@@ -39,6 +39,33 @@ struct QuestView: View {
                 // Quest list
                 ScrollView {
                     LazyVStack(spacing: 10) {
+                        if selectedTab == .story {
+                            NavigationLink(destination: StoryView()) {
+                                HStack(spacing: 14) {
+                                    Image(systemName: "book.closed.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(.orange)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Story Campaign")
+                                            .font(.subheadline.weight(.bold))
+                                            .foregroundStyle(.white)
+                                        Text("Play through the Rift Walkers narrative")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(14)
+                                .background(
+                                    LinearGradient(colors: [.orange.opacity(0.2), .purple.opacity(0.2)], startPoint: .leading, endPoint: .trailing),
+                                    in: RoundedRectangle(cornerRadius: 14)
+                                )
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(.orange.opacity(0.4), lineWidth: 1))
+                            }
+                        }
+
                         ForEach(questsForTab) { quest in
                             QuestCard(quest: quest) {
                                 selectedQuest = quest
@@ -180,7 +207,7 @@ struct QuestCard: View {
 
                         Spacer()
 
-                        Text("\(obj.currentCount)/\(obj.targetCount)")
+                        Text("\(obj.currentProgress)/\(obj.targetProgress)")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(obj.isComplete ? .green : .secondary)
                     }
@@ -188,18 +215,18 @@ struct QuestCard: View {
 
                 // Rewards preview
                 HStack(spacing: 10) {
-                    if quest.rewards.experience > 0 {
-                        Label("\(quest.rewards.experience)", systemImage: "star.fill")
+                    if quest.rewards.xp > 0 {
+                        Label("\(quest.rewards.xp)", systemImage: "star.fill")
                             .font(.caption2)
                             .foregroundStyle(.cyan)
                     }
-                    if quest.rewards.gold > 0 {
-                        Label("\(quest.rewards.gold)", systemImage: "dollarsign.circle.fill")
+                    if quest.rewards.stardust > 0 {
+                        Label("\(quest.rewards.stardust)", systemImage: "dollarsign.circle.fill")
                             .font(.caption2)
                             .foregroundStyle(.yellow)
                     }
-                    if quest.rewards.riftGems > 0 {
-                        Label("\(quest.rewards.riftGems)", systemImage: "diamond.fill")
+                    if quest.rewards.mythosTokens > 0 {
+                        Label("\(quest.rewards.mythosTokens)", systemImage: "diamond.fill")
                             .font(.caption2)
                             .foregroundStyle(.purple)
                     }
@@ -279,10 +306,10 @@ struct QuestDetailView: View {
                                     Spacer()
                                 }
 
-                                ProgressView(value: obj.progress)
+                                ProgressView(value: Double(obj.currentProgress) / Double(max(1, obj.targetProgress)))
                                     .tint(obj.isComplete ? .green : .blue)
 
-                                Text("\(obj.currentCount) / \(obj.targetCount)")
+                                Text("\(obj.currentProgress) / \(obj.targetProgress)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -297,14 +324,14 @@ struct QuestDetailView: View {
                             .font(.headline.weight(.bold))
 
                         HStack(spacing: 16) {
-                            if quest.rewards.experience > 0 {
-                                RewardPill(icon: "star.fill", value: "\(quest.rewards.experience) XP", color: .cyan)
+                            if quest.rewards.xp > 0 {
+                                RewardPill(icon: "star.fill", value: "\(quest.rewards.xp) XP", color: .cyan)
                             }
-                            if quest.rewards.gold > 0 {
-                                RewardPill(icon: "dollarsign.circle.fill", value: "\(quest.rewards.gold) Gold", color: .yellow)
+                            if quest.rewards.stardust > 0 {
+                                RewardPill(icon: "dollarsign.circle.fill", value: "\(quest.rewards.stardust) Gold", color: .yellow)
                             }
-                            if quest.rewards.riftGems > 0 {
-                                RewardPill(icon: "diamond.fill", value: "\(quest.rewards.riftGems) Gems", color: .purple)
+                            if quest.rewards.mythosTokens > 0 {
+                                RewardPill(icon: "diamond.fill", value: "\(quest.rewards.mythosTokens) Gems", color: .purple)
                             }
                         }
                     }

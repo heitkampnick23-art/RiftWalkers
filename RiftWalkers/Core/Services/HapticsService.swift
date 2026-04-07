@@ -107,6 +107,25 @@ final class HapticsService {
         ])
     }
 
+    func evolution() {
+        playPattern([
+            // Building energy
+            (intensity: 0.3, sharpness: 0.2, time: 0.0),
+            (intensity: 0.4, sharpness: 0.3, time: 0.15),
+            (intensity: 0.5, sharpness: 0.4, time: 0.3),
+            (intensity: 0.6, sharpness: 0.5, time: 0.45),
+            (intensity: 0.7, sharpness: 0.6, time: 0.6),
+            (intensity: 0.8, sharpness: 0.7, time: 0.75),
+            // Climax burst
+            (intensity: 1.0, sharpness: 1.0, time: 0.9),
+            (intensity: 0.4, sharpness: 0.2, time: 1.0),
+            (intensity: 1.0, sharpness: 1.0, time: 1.1),
+            // Settle
+            (intensity: 0.6, sharpness: 0.4, time: 1.3),
+            (intensity: 0.3, sharpness: 0.2, time: 1.5),
+        ])
+    }
+
     func sphereShake() {
         impact(.medium)
     }

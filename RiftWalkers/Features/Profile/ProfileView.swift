@@ -60,7 +60,7 @@ struct ProfileView: View {
                                         .font(.title2.weight(.black))
                                         .foregroundStyle(.white)
 
-                                    Text(player.title)
+                                    Text(player.title ?? "Rift Walker")
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(.white.opacity(0.7))
 
@@ -213,7 +213,32 @@ struct ProfileView: View {
 
     private var achievementsSection: some View {
         VStack(spacing: 12) {
-            if player.achievements.isEmpty {
+            // Summary bar
+            let mgr = AchievementManager.shared
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .foregroundStyle(.yellow)
+                Text("\(mgr.totalTiersUnlocked) / \(mgr.totalPossible) Tiers Unlocked")
+                    .font(.subheadline.weight(.bold))
+                Spacer()
+                NavigationLink {
+                    AchievementsView()
+                } label: {
+                    Text("View All")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.cyan)
+                }
+            }
+            .padding()
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+
+            // Recent unlocks preview
+            let recentUnlocks = mgr.achievements
+                .filter { $0.unlockedTier > 0 }
+                .sorted { ($0.unlockedDate ?? .distantPast) > ($1.unlockedDate ?? .distantPast) }
+                .prefix(5)
+
+            if recentUnlocks.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "trophy")
                         .font(.system(size: 40))
@@ -226,37 +251,37 @@ struct ProfileView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 40)
-            }
+            } else {
+                ForEach(Array(recentUnlocks), id: \.definitionId) { tracked in
+                    if let def = mgr.definition(for: tracked.definitionId) {
+                        HStack(spacing: 12) {
+                            Image(systemName: def.icon)
+                                .font(.title3)
+                                .foregroundStyle(def.category.color)
+                                .frame(width: 36, height: 36)
+                                .background(def.category.color.opacity(0.15), in: Circle())
 
-            ForEach(player.achievements) { achievement in
-                HStack(spacing: 12) {
-                    Image(systemName: achievement.icon)
-                        .font(.title3)
-                        .foregroundStyle(tierColor(achievement.tier))
-                        .frame(width: 36, height: 36)
-                        .background(tierColor(achievement.tier).opacity(0.15), in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Text(def.name)
+                                        .font(.subheadline.weight(.bold))
+                                    ForEach(1...tracked.unlockedTier, id: \.self) { _ in
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 7))
+                                            .foregroundStyle(.yellow)
+                                    }
+                                }
+                                Text(def.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(achievement.name)
-                            .font(.subheadline.weight(.bold))
-                        Text(achievement.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    if let title = achievement.rewardTitle {
-                        Text(title)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(tierColor(achievement.tier))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(tierColor(achievement.tier).opacity(0.15), in: Capsule())
+                            Spacer()
+                        }
+                        .padding()
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
-                .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
         }
         .padding(.horizontal)
@@ -313,7 +338,7 @@ struct ProfileView: View {
         case .silver: return .gray
         case .gold: return .yellow
         case .platinum: return .cyan
-        case .diamond: return .white
+        case .diamond: return .purple
         }
     }
 }
@@ -392,6 +417,11 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("arEnabled") private var arEnabled = true
     @AppStorage("batterySaver") private var batterySaver = false
+    @AppStorage("voiceGuideEnabled") private var voiceGuideEnabled = true
+
+    @StateObject private var ai = AIContentService.shared
+    @State private var apiKeyInput = ""
+    @State private var showAPIKeySaved = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -406,11 +436,49 @@ struct SettingsView: View {
                 Section("Gameplay") {
                     Toggle("Haptic Feedback", isOn: $hapticsEnabled)
                     Toggle("AR Mode", isOn: $arEnabled)
+                    Toggle("Rift Guide Voice", isOn: $voiceGuideEnabled)
                     Toggle("Battery Saver", isOn: $batterySaver)
                 }
 
                 Section("Notifications") {
                     Toggle("Push Notifications", isOn: $notificationsEnabled)
+                }
+
+                Section {
+                    HStack {
+                        Text("AI Card Art")
+                        Spacer()
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(ai.isUsingCloudProxy ? "Cloud" : "Local Key")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+
+                    HStack {
+                        Text("Mode")
+                        Spacer()
+                        Text(ai.isUsingCloudProxy ? "RiftWalkers Cloud" : "Custom API Key")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    SecureField("Custom OpenAI Key (optional)", text: $apiKeyInput)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+
+                    if !apiKeyInput.isEmpty {
+                        Button(action: saveAPIKey) {
+                            HStack {
+                                Image(systemName: "key.fill")
+                                Text(showAPIKeySaved ? "Saved!" : "Use Custom Key")
+                            }
+                        }
+                    }
+                } header: {
+                    Text("AI Content (DALL-E 3)")
+                } footer: {
+                    Text("AI creature art is powered by RiftWalkers Cloud by default. Optionally use your own OpenAI key for unlimited generation.")
                 }
 
                 Section("Account") {
@@ -434,6 +502,16 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+
+    private func saveAPIKey() {
+        ai.setAPIKey(apiKeyInput)
+        apiKeyInput = ""
+        showAPIKeySaved = true
+        HapticsService.shared.notification(.success)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showAPIKeySaved = false
         }
     }
 }

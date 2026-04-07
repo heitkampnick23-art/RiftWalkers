@@ -92,6 +92,7 @@ struct MainTabView: View {
                 }
             }
         }
+        .overlay { RiftGuideOverlay() }
         .ignoresSafeArea(.keyboard)
         .sheet(isPresented: $showShop) {
             ShopView()
@@ -101,6 +102,11 @@ struct MainTabView: View {
         }
         .onAppear {
             checkDailyReward()
+            // Trigger guide hints based on context
+            if progression.player.creaturesCaught == 0 {
+                AICompanionService.shared.onFirstLaunch()
+            }
+            AICompanionService.shared.onDailyLogin(streak: progression.player.dailyStreak)
         }
     }
 

@@ -8,6 +8,7 @@ import Combine
 // Goal: 30-second casual battles, 3-minute deep battles.
 
 final class BattleManager: ObservableObject {
+    static let shared = BattleManager()
 
     // MARK: - Published State
 

@@ -209,25 +209,22 @@ final class MapViewModel: ObservableObject {
             (-0.002, -0.001, "Battle Arena", .arena),
         ]
 
-        return offsets.map { (latOff, lonOff, name, type) in
+        return offsets.map { (latOff, lonOff, name, _) in
             Territory(
-                id: UUID(),
+                id: UUID().uuidString,
                 name: name,
-                location: GeoPoint(
+                centerCoordinate: CodableCoordinate(
                     latitude: location.coordinate.latitude + latOff,
                     longitude: location.coordinate.longitude + lonOff
                 ),
-                radius: 75,
-                type: type,
-                ownerID: nil,
-                ownerFaction: [Faction.aether, .umbra, .nexus, nil].randomElement()!,
-                guildID: nil,
-                defenseLevel: Int.random(in: 1...5),
+                radiusMeters: 75,
+                controllingFaction: [Faction.asgardians, .olympians, .phantoms, nil].randomElement()!,
+                controllingGuildID: nil,
+                controlStrength: Double.random(in: 0.2...1.0),
                 defenders: [],
-                resources: TerritoryResources(goldPerHour: 50, essencePerHour: 10, essenceType: .norse, riftDustPerHour: 5),
-                lastCaptured: nil,
-                captureCount: 0,
-                structures: []
+                fortificationLevel: Int.random(in: 1...5),
+                dailyReward: Territory.TerritoryReward(riftstones: 50, stardust: 100, bonusItemIDs: []),
+                lastContestedDate: nil
             )
         }
     }
@@ -309,7 +306,7 @@ struct TerritoryMapPin: View {
 
             // Defense level indicators
             HStack(spacing: 1) {
-                ForEach(0..<min(territory.defenseLevel, 5), id: \.self) { _ in
+                ForEach(0..<min(territory.fortificationLevel, 5), id: \.self) { _ in
                     Circle()
                         .fill(.white)
                         .frame(width: 3, height: 3)

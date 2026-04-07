@@ -31,9 +31,14 @@ Pods/
 .LSOverride
 ._*
 
+# Node
+node_modules/
+.wrangler/
+
 # Secrets
 *.env
 *.pem
 *.p12
 *.p8
 GoogleService-Info.plist
+Secrets.plist

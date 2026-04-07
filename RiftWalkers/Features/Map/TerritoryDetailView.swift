@@ -16,6 +16,18 @@ struct TerritoryDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+                mainContent
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var mainContent: some View {
                 VStack(spacing: 20) {
                     // Header
                     ZStack {
@@ -39,7 +51,7 @@ struct TerritoryDetailView: View {
 
                             HStack(spacing: 12) {
                                 Label(territory.type.rawValue.capitalized, systemImage: "mappin")
-                                Label("Level \(territory.defenseLevel)", systemImage: "shield.fill")
+                                Label("Level \(territory.fortificationLevel)", systemImage: "shield.fill")
                             }
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.white.opacity(0.8))
@@ -58,7 +70,7 @@ struct TerritoryDetailView: View {
                                 Text(faction.rawValue)
                                     .font(.subheadline.weight(.semibold))
                                 Spacer()
-                                Text("Captured \(territory.captureCount) times")
+                                Text("Fortification Level \(territory.fortificationLevel)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -142,7 +154,7 @@ struct TerritoryDetailView: View {
                     }
 
                     // Action button
-                    if territory.ownerID == nil {
+                    if territory.controllingGuildID == nil {
                         Button(action: { showClaimConfirm = true }) {
                             Label("Claim Territory", systemImage: "flag.fill")
                                 .font(.headline.weight(.bold))
@@ -171,14 +183,6 @@ struct TerritoryDetailView: View {
                     }
                 }
                 .padding(.vertical)
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
     }
 
     private var territoryIcon: String {
@@ -201,6 +205,12 @@ struct TerritoryDetailView: View {
         case .essenceExtractor: return "diamond.fill"
         case .wardStone: return "bell.fill"
         case .portalGate: return "door.left.hand.open"
+        case .tower: return "building.columns.fill"
+        case .gate: return "door.garage.closed"
+        case .barracks: return "person.3.fill"
+        case .shrine: return "sparkles"
+        case .forge: return "flame.fill"
+        case .vault: return "lock.shield.fill"
         }
     }
 }

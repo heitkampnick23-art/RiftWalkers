@@ -1,0 +1,215 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "CF2ABE04",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "135A4568",
+      "localizations" : [
+        {
+          "description" : "100 Rift Gems",
+          "displayName" : "Handful of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.gems.100",
+      "referenceName" : "Handful of Rift Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "1226CF4B",
+      "localizations" : [
+        {
+          "description" : "500 + 50 Bonus Rift Gems",
+          "displayName" : "Pouch of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.gems.500",
+      "referenceName" : "Pouch of Rift Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "A6A2D6E8",
+      "localizations" : [
+        {
+          "description" : "1200 + 200 Bonus Rift Gems",
+          "displayName" : "Chest of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.gems.1200",
+      "referenceName" : "Chest of Rift Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "24.99",
+      "familyShareable" : false,
+      "internalID" : "52F3B3BA",
+      "localizations" : [
+        {
+          "description" : "2500 + 500 Bonus Rift Gems",
+          "displayName" : "Vault of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.gems.2500",
+      "referenceName" : "Vault of Rift Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "49.99",
+      "familyShareable" : false,
+      "internalID" : "2EC18232",
+      "localizations" : [
+        {
+          "description" : "6500 + 1500 Bonus Rift Gems",
+          "displayName" : "Hoard of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.gems.6500",
+      "referenceName" : "Hoard of Rift Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "F3E53B06",
+      "localizations" : [
+        {
+          "description" : "300 Gems + 5000 Gold bundle",
+          "displayName" : "Starter Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.starter.pack",
+      "referenceName" : "Starter Adventure Pack",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "8CD56D74",
+      "localizations" : [
+        {
+          "description" : "150 Gems, 3000 Gold & 500 Dust",
+          "displayName" : "Weekly Deal",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.weekly.deal",
+      "referenceName" : "Weekly Rift Deal",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "084B462E",
+      "localizations" : [
+        {
+          "description" : "Unlock premium season rewards",
+          "displayName" : "Premium Battle Pass",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.battlepass.premium",
+      "referenceName" : "Battle Pass Premium",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "internalID" : "EAFF66CC",
+      "localizations" : [
+        {
+          "description" : "Premium pass + 25 tiers & 500 Gems",
+          "displayName" : "Deluxe Battle Pass",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.riftwalkers.app.battlepass.deluxe",
+      "referenceName" : "Battle Pass Deluxe",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "0B2E1002",
+      "localizations" : [
+
+      ],
+      "name" : "RiftWalker Plus",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "C09CF73B",
+          "introductoryOffer" : {
+            "displayPrice" : "0.99",
+            "internalID" : "A2C8EC2B",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1M"
+          },
+          "localizations" : [
+            {
+              "description" : "Daily gems, XP boost & exclusive loot",
+              "displayName" : "Rift Walker Plus",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.riftwalkers.app.sub.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Rift Walker Plus Monthly",
+          "subscriptionGroupID" : "0B2E1002",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

@@ -1,0 +1,11 @@
+name = "riftwalkers-api"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+[vars]
+RATE_LIMIT_PER_MINUTE = "30"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "riftwalkers-db"
+database_id = "324654b7-7aaf-46bf-b0e9-9555c141266e"

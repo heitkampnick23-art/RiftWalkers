@@ -12,6 +12,9 @@ struct ShopView: View {
     @State private var selectedTab: ShopTab = .featured
     @State private var showPurchaseConfirm = false
     @State private var selectedProduct: Product?
+    @State private var showGachaPull = false
+    @State private var gachaPullCount = 1
+    @State private var gachaResults: [(rarity: Rarity, species: CreatureSpecies?)] = []
 
     enum ShopTab: String, CaseIterable {
         case featured = "Featured"
@@ -63,6 +66,59 @@ struct ShopView: View {
             }
             .navigationTitle("Shop")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showGachaPull) {
+                GachaPullResultView(results: gachaResults)
+            }
+        }
+    }
+
+    // MARK: - Shop Purchase
+
+    private func buyItem(gold: Int = 0, gems: Int = 0) {
+        if economy.spend(gold: gold, gems: gems) {
+            HapticsService.shared.notification(.success)
+            AudioService.shared.playSFX(.coinCollect)
+        } else {
+            HapticsService.shared.notification(.error)
+        }
+    }
+
+    // MARK: - Gacha Pull Logic
+
+    private func performGachaPull(count: Int) {
+        let banner = EconomyManager.GachaBanner(
+            id: UUID(),
+            name: "Norse Legends",
+            featuredCreatures: Array(SpeciesDatabase.shared.species.keys.prefix(3)),
+            mythology: .norse,
+            startDate: Date(),
+            endDate: Date().addingTimeInterval(86400 * 14),
+            costPerPull: 160,
+            costPer10Pull: 1440
+        )
+
+        let totalCost = count >= 10 ? banner.costPer10Pull : banner.costPerPull * count
+        guard economy.riftGems >= totalCost else {
+            HapticsService.shared.notification(.error)
+            return
+        }
+
+        var results: [(rarity: Rarity, species: CreatureSpecies?)] = []
+        let allSpecies = Array(SpeciesDatabase.shared.species.values)
+
+        for _ in 0..<count {
+            if let pull = economy.performGachaPull(banner: banner) {
+                let matchingSpecies = allSpecies.filter { $0.rarity == pull.rarity }.randomElement()
+                    ?? allSpecies.randomElement()
+                results.append((pull.rarity, matchingSpecies))
+            }
+        }
+
+        gachaResults = results
+        if !results.isEmpty {
+            showGachaPull = true
+            HapticsService.shared.notification(.success)
+            AudioService.shared.playSFX(.rareDrop)
         }
     }
 
@@ -165,7 +221,7 @@ struct ShopView: View {
                         Spacer()
 
                         VStack(spacing: 6) {
-                            Button(action: {}) {
+                            Button(action: { performGachaPull(count: 1) }) {
                                 Text("1x Pull")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(.white)
@@ -177,7 +233,7 @@ struct ShopView: View {
                                 .font(.system(size: 9))
                                 .foregroundStyle(.purple)
 
-                            Button(action: {}) {
+                            Button(action: { performGachaPull(count: 10) }) {
                                 Text("10x Pull")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(.white)
@@ -285,7 +341,7 @@ struct ShopView: View {
                                 Spacer()
 
                                 if let gold = item.goldCost {
-                                    Button(action: {}) {
+                                    Button(action: { buyItem(gold: gold) }) {
                                         HStack(spacing: 3) {
                                             Image(systemName: "dollarsign.circle.fill")
                                                 .foregroundStyle(.yellow)
@@ -297,7 +353,7 @@ struct ShopView: View {
                                         .background(.yellow.opacity(0.15), in: Capsule())
                                     }
                                 } else if let gems = item.gemCost {
-                                    Button(action: {}) {
+                                    Button(action: { buyItem(gems: gems) }) {
                                         HStack(spacing: 3) {
                                             Image(systemName: "diamond.fill")
                                                 .foregroundStyle(.purple)
@@ -357,7 +413,7 @@ struct ShopView: View {
                     .font(.subheadline.weight(.bold))
                 Spacer()
                 if !ProgressionManager.shared.player.battlePassPremium {
-                    Button(action: {}) {
+                    Button(action: { purchaseBattlePass() }) {
                         Text("Upgrade to Premium")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.white)
@@ -368,6 +424,10 @@ struct ShopView: View {
                                 in: Capsule()
                             )
                     }
+                } else {
+                    Text("PREMIUM")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(.yellow)
                 }
             }
             .padding(.horizontal)
@@ -375,18 +435,45 @@ struct ShopView: View {
             // Tier reward preview
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(1..<16, id: \.self) { tier in
+                    ForEach(1..<51, id: \.self) { tier in
                         BattlePassTierCard(
                             tier: tier,
                             isUnlocked: tier <= ProgressionManager.shared.player.battlePassTier,
-                            isPremium: false
-                        )
+                            isPremium: ProgressionManager.shared.player.battlePassPremium
+                        ) {
+                            claimTierReward(tier: tier)
+                        }
                     }
                 }
                 .padding(.horizontal)
             }
         }
         .padding(.vertical)
+    }
+
+    private func purchaseBattlePass() {
+        // Try real IAP first, fall back to gem purchase for testing
+        if economy.spend(gems: 980) {
+            ProgressionManager.shared.player.battlePassPremium = true
+            HapticsService.shared.notification(.success)
+            AudioService.shared.playSFX(.rareDrop)
+        } else {
+            HapticsService.shared.notification(.error)
+        }
+    }
+
+    private func claimTierReward(tier: Int) {
+        guard tier <= ProgressionManager.shared.player.battlePassTier else { return }
+        // Award tier reward
+        switch tier % 5 {
+        case 0: economy.earn(gems: 20)
+        case 1: economy.earn(gold: 200)
+        case 2: economy.earn(gold: 300)
+        case 3: economy.earn(dust: 100)
+        default: economy.earn(gems: 10, dust: 50)
+        }
+        HapticsService.shared.notification(.success)
+        AudioService.shared.playSFX(.coinCollect)
     }
 
     // MARK: - Fallback gem packs
@@ -396,7 +483,7 @@ struct ShopView: View {
             ("Handful of Gems", 100, nil, "$0.99"),
             ("Pouch of Gems", 500, 50, "$4.99"),
             ("Chest of Gems", 1200, 200, "$9.99"),
-            ("Vault of Gems", 2500, 500, "$19.99"),
+            ("Vault of Gems", 2500, 500, "$24.99"),
             ("Hoard of Gems", 6500, 1500, "$49.99"),
         ]
     }
@@ -486,36 +573,175 @@ struct GemPackCard: View {
     }
 }
 
+// MARK: - Gacha Pull Result View
+
+struct GachaPullResultView: View {
+    let results: [(rarity: Rarity, species: CreatureSpecies?)]
+
+    @State private var revealedCount = 0
+    @State private var showAll = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.indigo, .purple.opacity(0.6), .black],
+                startPoint: .top, endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Text(results.count > 1 ? "MULTI-SUMMON" : "SUMMON")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(
+                        LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing)
+                    )
+                    .padding(.top, 30)
+
+                if showAll {
+                    // Show all cards in grid
+                    ScrollView {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 8),
+                            GridItem(.flexible(), spacing: 8),
+                            GridItem(.flexible(), spacing: 8)
+                        ], spacing: 12) {
+                            ForEach(Array(results.enumerated()), id: \.offset) { idx, result in
+                                if let species = result.species {
+                                    CreatureCardView(
+                                        species: species,
+                                        creature: nil,
+                                        isShiny: false,
+                                        showStats: false,
+                                        size: .small
+                                    )
+                                    .transition(.scale.combined(with: .opacity))
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                } else if revealedCount < results.count, let species = results[revealedCount].species {
+                    // Single card reveal
+                    Spacer()
+
+                    ZStack {
+                        // Rarity burst
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [species.rarity.color.opacity(0.5), .clear],
+                                    center: .center, startRadius: 20, endRadius: 180
+                                )
+                            )
+                            .frame(width: 360, height: 360)
+
+                        CreatureCardView(
+                            species: species,
+                            creature: nil,
+                            isShiny: false,
+                            showStats: true,
+                            size: .large
+                        )
+                    }
+
+                    Text("\(revealedCount + 1) / \(results.count)")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.5))
+
+                    Spacer()
+                }
+
+                // Controls
+                HStack(spacing: 16) {
+                    if !showAll && results.count > 1 {
+                        Button(action: { withAnimation { showAll = true } }) {
+                            Text("Show All")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(.white.opacity(0.15), in: Capsule())
+                        }
+                    }
+
+                    Button(action: {
+                        if !showAll && revealedCount < results.count - 1 {
+                            withAnimation(.spring()) { revealedCount += 1 }
+                            HapticsService.shared.selection()
+                        } else {
+                            dismiss()
+                        }
+                    }) {
+                        Text(showAll || revealedCount >= results.count - 1 ? "Done" : "Next")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 40)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing),
+                                in: Capsule()
+                            )
+                    }
+                }
+                .padding(.bottom, 40)
+            }
+        }
+    }
+}
+
 struct BattlePassTierCard: View {
     let tier: Int
     let isUnlocked: Bool
     let isPremium: Bool
+    var onClaim: (() -> Void)?
+
+    @State private var claimed = false
 
     var body: some View {
-        VStack(spacing: 4) {
-            Text("T\(tier)")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.secondary)
+        Button(action: {
+            if isUnlocked && !claimed {
+                claimed = true
+                onClaim?()
+            }
+        }) {
+            VStack(spacing: 4) {
+                Text("T\(tier)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(isPremium && tier % 3 == 0 ? .yellow : .secondary)
 
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isUnlocked ? .green.opacity(0.3) : .gray.opacity(0.15))
-                .frame(width: 50, height: 50)
-                .overlay(
-                    Image(systemName: rewardIcon(tier))
-                        .font(.title3)
-                        .foregroundStyle(isUnlocked ? .white : .secondary)
-                )
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(claimed ? .green.opacity(0.5) : isUnlocked ? .green.opacity(0.3) : .gray.opacity(0.15))
+                        .frame(width: 50, height: 50)
+
+                    if claimed {
+                        Image(systemName: "checkmark")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.green)
+                    } else {
+                        Image(systemName: rewardIcon(tier))
+                            .font(.title3)
+                            .foregroundStyle(isUnlocked ? .white : .secondary)
+                    }
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(isUnlocked ? .green : .gray.opacity(0.3), lineWidth: 1)
+                        .stroke(isPremium && tier % 3 == 0 ? .yellow.opacity(0.6) : isUnlocked ? .green : .gray.opacity(0.3), lineWidth: 1)
                 )
 
-            if isUnlocked {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.green)
+                if isUnlocked && !claimed {
+                    Text("Claim")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.green)
+                } else if claimed {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.green)
+                }
             }
         }
+        .disabled(!isUnlocked || claimed)
     }
 
     private func rewardIcon(_ tier: Int) -> String {

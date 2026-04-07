@@ -67,6 +67,8 @@ enum Mythology: String, Codable, CaseIterable, Identifiable {
 // MARK: - Element System (Rock-Paper-Scissors with depth)
 enum Element: String, Codable, CaseIterable {
     case fire, water, earth, air, lightning, shadow, light, nature, frost, arcane
+    case ice, wind
+    case `void`
 
     /// Returns the multiplier when attacking the defender element
     func damageMultiplier(against defender: Element) -> Double {
@@ -92,13 +94,28 @@ enum Element: String, Codable, CaseIterable {
         case .fire: return .red
         case .water: return .blue
         case .earth: return .brown
-        case .air: return .cyan
+        case .air, .wind: return .cyan
         case .lightning: return .yellow
         case .shadow: return .purple
         case .light: return .white
         case .nature: return .green
-        case .frost: return Color(red: 0.7, green: 0.9, blue: 1.0)
-        case .arcane: return .pink
+        case .frost, .ice: return Color(red: 0.7, green: 0.9, blue: 1.0)
+        case .arcane, .void: return .pink
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .fire: return "flame.fill"
+        case .water: return "drop.fill"
+        case .earth: return "mountain.2.fill"
+        case .air, .wind: return "wind"
+        case .lightning: return "bolt.fill"
+        case .shadow: return "moon.fill"
+        case .light: return "sun.max.fill"
+        case .nature: return "leaf.fill"
+        case .frost, .ice: return "snowflake"
+        case .arcane, .void: return "sparkles"
         }
     }
 }
@@ -202,18 +219,26 @@ struct OwnedCreature: Codable, Identifiable {
 
 // MARK: - Ability System
 struct Ability: Codable, Identifiable {
-    let id: String
+    let id: UUID
     let name: String
     let element: Element
     let power: Int
     let accuracy: Double      // 0.0 - 1.0
-    let cooldownTurns: Int
+    let cooldown: TimeInterval
     let description: String
-    let effectType: AbilityEffect
     let isUltimate: Bool
+    var currentCooldown: TimeInterval
 
-    enum AbilityEffect: String, Codable {
-        case damage, heal, buff, debuff, dot, shield, stun, drain
+    init(id: UUID = UUID(), name: String, element: Element, power: Int, accuracy: Double, cooldown: TimeInterval, description: String, isUltimate: Bool, currentCooldown: TimeInterval = 0) {
+        self.id = id
+        self.name = name
+        self.element = element
+        self.power = power
+        self.accuracy = accuracy
+        self.cooldown = cooldown
+        self.description = description
+        self.isUltimate = isUltimate
+        self.currentCooldown = currentCooldown
     }
 }
 
@@ -404,7 +429,7 @@ struct Quest: Codable, Identifiable {
     let description: String
     let type: QuestType
     let mythology: Mythology?
-    let objectives: [QuestObjective]
+    var objectives: [QuestObjective]
     let rewards: QuestRewards
     let expiresAt: Date?
     let isMainStory: Bool
@@ -592,6 +617,8 @@ struct CodableCoordinate: Codable {
     var clLocation: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
+
+    var coordinate: CLLocationCoordinate2D { clLocation }
 
     init(from coordinate: CLLocationCoordinate2D) {
         self.latitude = coordinate.latitude

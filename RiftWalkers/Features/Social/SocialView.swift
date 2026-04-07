@@ -6,8 +6,17 @@ import SwiftUI
 // Players who join a guild within 7 days have 3x retention at D30.
 
 struct SocialView: View {
+    @StateObject private var guildMgr = GuildManager.shared
     @State private var selectedTab: SocialTab = .guild
     @State private var showCreateGuild = false
+    @State private var showAddFriend = false
+    @State private var friendCode = ""
+    @State private var joinedGuildID: String?
+    @State private var showGuildJoinedAlert = false
+    @State private var joinedGuildName = ""
+    @State private var guildNameInput = ""
+    @State private var guildTagInput = ""
+    @State private var selectedFaction: Faction = .phantoms
 
     enum SocialTab: String, CaseIterable {
         case guild = "Guild"
@@ -46,64 +55,197 @@ struct SocialView: View {
             }
             .navigationTitle("Social")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("Joined Guild!", isPresented: $showGuildJoinedAlert) {
+                Button("OK") {}
+            } message: {
+                Text("You are now a member of \(joinedGuildName)!")
+            }
+            .sheet(isPresented: $showCreateGuild) {
+                createGuildSheet
+            }
+            .sheet(isPresented: $showAddFriend) {
+                addFriendSheet
+            }
+        }
+    }
+
+    // MARK: - Create Guild Sheet
+
+    private var createGuildSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Guild Info") {
+                    TextField("Guild Name", text: $guildNameInput)
+                    TextField("Tag (3 letters)", text: $guildTagInput)
+                        .textInputAutocapitalization(.characters)
+                        .onChange(of: guildTagInput) { _, val in
+                            if val.count > 3 { guildTagInput = String(val.prefix(3)) }
+                        }
+                }
+                Section("Faction") {
+                    Picker("Faction", selection: $selectedFaction) {
+                        ForEach(Faction.allCases, id: \.self) { faction in
+                            Label(faction.rawValue, systemImage: faction.icon)
+                                .tag(faction)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                }
+                Section {
+                    HStack {
+                        Text("Creation Cost")
+                        Spacer()
+                        HStack(spacing: 3) {
+                            Image(systemName: "dollarsign.circle.fill").foregroundStyle(.yellow)
+                            Text("1000 Gold")
+                        }
+                        .font(.caption.weight(.bold))
+                    }
+                }
+            }
+            .navigationTitle("Create Guild")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showCreateGuild = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        if guildMgr.createGuild(name: guildNameInput, tag: guildTagInput, faction: selectedFaction) {
+                            joinedGuildName = guildNameInput
+                            showCreateGuild = false
+                            showGuildJoinedAlert = true
+                            guildNameInput = ""
+                            guildTagInput = ""
+                        } else {
+                            HapticsService.shared.notification(.error)
+                        }
+                    }
+                    .disabled(guildNameInput.isEmpty || guildTagInput.count < 2)
+                }
+            }
+        }
+    }
+
+    // MARK: - Add Friend Sheet
+
+    private var addFriendSheet: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                VStack(spacing: 8) {
+                    Text("Your Friend Code")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Text("RW-\(String(UUID().uuidString.prefix(8)).uppercased())")
+                        .font(.title2.weight(.black).monospaced())
+                        .foregroundStyle(.cyan)
+                    Button("Copy Code") {
+                        UIPasteboard.general.string = "RW-\(String(UUID().uuidString.prefix(8)).uppercased())"
+                        HapticsService.shared.notification(.success)
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+
+                VStack(spacing: 12) {
+                    Text("Enter Friend Code")
+                        .font(.subheadline.weight(.semibold))
+                    TextField("RW-XXXXXXXX", text: $friendCode)
+                        .textFieldStyle(.roundedBorder)
+                        .textInputAutocapitalization(.characters)
+                    Button(action: {
+                        HapticsService.shared.notification(.success)
+                        friendCode = ""
+                        showAddFriend = false
+                    }) {
+                        Text("Send Request")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(.blue, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .disabled(friendCode.count < 4)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Add Friend")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { showAddFriend = false }
+                }
+            }
         }
     }
 
     // MARK: - Guild Tab
 
     private var guildTab: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // No guild state
-                VStack(spacing: 16) {
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 50))
-                        .foregroundStyle(
-                            LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing)
-                        )
+        Group {
+            if guildMgr.isInGuild {
+                GuildDetailView()
+            } else {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VStack(spacing: 16) {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 50))
+                                .foregroundStyle(
+                                    LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing)
+                                )
 
-                    Text("Join a Guild")
-                        .font(.title2.weight(.bold))
+                            Text("Join a Guild")
+                                .font(.title2.weight(.bold))
 
-                    Text("Team up with other Rift Walkers to claim territories, raid dungeons, and climb the leaderboards together.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                            Text("Team up with other Rift Walkers to claim territories, raid dungeons, and climb the leaderboards together.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
 
-                    HStack(spacing: 12) {
-                        Button(action: {}) {
-                            Label("Browse Guilds", systemImage: "magnifyingglass")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.blue, in: RoundedRectangle(cornerRadius: 12))
+                            HStack(spacing: 12) {
+                                Button(action: {}) {
+                                    Label("Browse Guilds", systemImage: "magnifyingglass")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(.blue, in: RoundedRectangle(cornerRadius: 12))
+                                }
+
+                                Button(action: { showCreateGuild = true }) {
+                                    Label("Create", systemImage: "plus")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.blue)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
                         }
+                        .padding(24)
 
-                        Button(action: { showCreateGuild = true }) {
-                            Label("Create", systemImage: "plus")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.blue)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Top Guilds")
+                                .font(.headline.weight(.bold))
+                                .padding(.horizontal)
+
+                            ForEach(demoGuilds) { guild in
+                                GuildListRow(guild: guild) {
+                                    guildMgr.joinGuild(guild)
+                                    joinedGuildName = guild.name
+                                    showGuildJoinedAlert = true
+                                }
+                            }
                         }
                     }
-                }
-                .padding(24)
-
-                // Featured guilds
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Top Guilds")
-                        .font(.headline.weight(.bold))
-                        .padding(.horizontal)
-
-                    ForEach(demoGuilds) { guild in
-                        GuildListRow(guild: guild)
-                    }
+                    .padding(.vertical)
                 }
             }
-            .padding(.vertical)
         }
     }
 
@@ -113,17 +255,20 @@ struct SocialView: View {
         ScrollView {
             VStack(spacing: 16) {
                 // Add friend
-                HStack {
-                    Image(systemName: "person.badge.plus")
-                        .foregroundStyle(.blue)
-                    Text("Add Friend")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
+                Button(action: { showAddFriend = true }) {
+                    HStack {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundStyle(.blue)
+                        Text("Add Friend")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 }
-                .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
 
                 // Friend list placeholder
                 VStack(spacing: 12) {
@@ -223,9 +368,9 @@ struct SocialView: View {
 
     private var demoGuilds: [Guild] {
         [
-            Guild(id: UUID(), name: "Shadow Reapers", tag: "SHD", description: "Top PvP guild", iconURL: nil, leaderID: UUID(), officerIDs: [], memberIDs: Array(repeating: UUID(), count: 28), maxMembers: 30, level: 12, experience: 0, faction: .umbra, territoriesOwned: 8, weeklyScore: 45200, createdDate: Date(), isPublic: true, requiredLevel: 15, requiredPvPRating: 1200),
-            Guild(id: UUID(), name: "Aether Knights", tag: "AKN", description: "Protecting the realm", iconURL: nil, leaderID: UUID(), officerIDs: [], memberIDs: Array(repeating: UUID(), count: 25), maxMembers: 30, level: 10, experience: 0, faction: .aether, territoriesOwned: 12, weeklyScore: 38900, createdDate: Date(), isPublic: true, requiredLevel: 10, requiredPvPRating: 1000),
-            Guild(id: UUID(), name: "Nexus Collective", tag: "NXC", description: "Balance in all things", iconURL: nil, leaderID: UUID(), officerIDs: [], memberIDs: Array(repeating: UUID(), count: 22), maxMembers: 30, level: 8, experience: 0, faction: .nexus, territoriesOwned: 6, weeklyScore: 31500, createdDate: Date(), isPublic: true, requiredLevel: 5, requiredPvPRating: 800),
+            Guild(id: "guild-1", name: "Shadow Reapers", tag: "SHD", faction: .phantoms, leaderID: "leader-1", officerIDs: [], memberIDs: Array(repeating: "member", count: 28), level: 12, totalXP: 45200, territoriesControlled: 8, description: "Top PvP guild", isRecruiting: true, maxMembers: 30, createdDate: Date()),
+            Guild(id: "guild-2", name: "Aether Knights", tag: "AKN", faction: .asgardians, leaderID: "leader-2", officerIDs: [], memberIDs: Array(repeating: "member", count: 25), level: 10, totalXP: 38900, territoriesControlled: 12, description: "Protecting the realm", isRecruiting: true, maxMembers: 30, createdDate: Date()),
+            Guild(id: "guild-3", name: "Nexus Collective", tag: "NXC", faction: .olympians, leaderID: "leader-3", officerIDs: [], memberIDs: Array(repeating: "member", count: 22), level: 8, totalXP: 31500, territoriesControlled: 6, description: "Balance in all things", isRecruiting: true, maxMembers: 30, createdDate: Date()),
         ]
     }
 
@@ -238,10 +383,12 @@ struct SocialView: View {
 
 struct GuildListRow: View {
     let guild: Guild
+    var onJoin: (() -> Void)?
+
+    @State private var joined = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Guild icon
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(guild.faction.color)
@@ -269,12 +416,20 @@ struct GuildListRow: View {
 
             Spacer()
 
-            Button("Join") {}
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.blue, in: Capsule())
+            Button(joined ? "Joined" : "Join") {
+                if !joined {
+                    joined = true
+                    HapticsService.shared.notification(.success)
+                    AudioService.shared.playSFX(.territoryCapture)
+                    onJoin?()
+                }
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(joined ? .green : .blue, in: Capsule())
+            .animation(.spring(), value: joined)
         }
         .padding(.horizontal)
     }

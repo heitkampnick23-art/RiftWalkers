@@ -31,23 +31,37 @@ final class EconomyManager: ObservableObject {
     private var transactionListener: Task<Void, Error>?
 
     // MARK: - Product IDs (App Store Connect)
+    // These MUST match exactly what is configured in App Store Connect.
+    // Bundle ID: com.riftwalkers.app
     struct ProductIDs {
-        static let gemPack100 = "com.riftwalkers.gems.100"
-        static let gemPack500 = "com.riftwalkers.gems.500"
-        static let gemPack1200 = "com.riftwalkers.gems.1200"
-        static let gemPack2500 = "com.riftwalkers.gems.2500"
-        static let gemPack6500 = "com.riftwalkers.gems.6500"
-        static let battlePassPremium = "com.riftwalkers.battlepass.premium"
-        static let battlePassDeluxe = "com.riftwalkers.battlepass.deluxe"
-        static let monthlySubscription = "com.riftwalkers.sub.monthly"
-        static let starterPack = "com.riftwalkers.starter.pack"
-        static let weeklyDeal = "com.riftwalkers.weekly.deal"
+        // Consumable — Rift Gem Packs
+        static let gemPack100  = "com.riftwalkers.app.gems.100"
+        static let gemPack500  = "com.riftwalkers.app.gems.500"
+        static let gemPack1200 = "com.riftwalkers.app.gems.1200"
+        static let gemPack2500 = "com.riftwalkers.app.gems.2500"
+        static let gemPack6500 = "com.riftwalkers.app.gems.6500"
 
+        // Non-Consumable — Battle Pass (seasonal, one-time per season)
+        static let battlePassPremium = "com.riftwalkers.app.battlepass.premium"
+        static let battlePassDeluxe  = "com.riftwalkers.app.battlepass.deluxe"
+
+        // Auto-Renewable Subscription — Rift Walker Plus
+        static let monthlySubscription = "com.riftwalkers.app.sub.monthly"
+
+        // Consumable — Special Bundles
+        static let starterPack = "com.riftwalkers.app.starter.pack"
+        static let weeklyDeal  = "com.riftwalkers.app.weekly.deal"
+
+        // All product IDs for StoreKit product request
         static let allIDs: [String] = [
             gemPack100, gemPack500, gemPack1200, gemPack2500, gemPack6500,
             battlePassPremium, battlePassDeluxe, monthlySubscription,
             starterPack, weeklyDeal
         ]
+
+        // Subscription Group ID (for App Store Connect)
+        static let subscriptionGroupName = "RiftWalker Plus"
+        static let subscriptionGroupID   = "com.riftwalkers.app.sub"
     }
 
     private init() {
@@ -264,14 +278,38 @@ final class EconomyManager: ObservableObject {
             purchasedProductIDs.insert(productID)
 
             switch productID {
-            case ProductIDs.gemPack100: riftGems += 100
-            case ProductIDs.gemPack500: riftGems += 500
-            case ProductIDs.gemPack1200: riftGems += 1200
-            case ProductIDs.gemPack2500: riftGems += 2500
-            case ProductIDs.gemPack6500: riftGems += 6500
+            // Consumable — Gem Packs
+            case ProductIDs.gemPack100:  riftGems += 100
+            case ProductIDs.gemPack500:  riftGems += 550   // 500 + 50 bonus
+            case ProductIDs.gemPack1200: riftGems += 1400  // 1200 + 200 bonus
+            case ProductIDs.gemPack2500: riftGems += 3000  // 2500 + 500 bonus
+            case ProductIDs.gemPack6500: riftGems += 8000  // 6500 + 1500 bonus
+
+            // Consumable — Starter Pack
             case ProductIDs.starterPack:
                 riftGems += 300
                 gold += 5000
+
+            // Consumable — Weekly Deal
+            case ProductIDs.weeklyDeal:
+                riftGems += 150
+                gold += 3000
+                riftDust += 500
+
+            // Non-Consumable — Battle Pass
+            case ProductIDs.battlePassPremium:
+                ProgressionManager.shared.player.battlePassPremium = true
+
+            case ProductIDs.battlePassDeluxe:
+                ProgressionManager.shared.player.battlePassPremium = true
+                ProgressionManager.shared.player.battlePassTier += 25  // Skip 25 tiers
+                riftGems += 500
+
+            // Auto-Renewable Subscription — Rift Walker Plus
+            case ProductIDs.monthlySubscription:
+                // Daily gems delivered on login; flag stored for entitlement check
+                UserDefaults.standard.set(true, forKey: "riftwalker_plus_active")
+
             default:
                 break
             }

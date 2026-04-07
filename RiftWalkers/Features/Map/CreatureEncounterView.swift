@@ -28,7 +28,9 @@ struct CreatureEncounterView: View {
     @State private var creatureScale: Double = 0.3
     @State private var glowPulse = false
     @State private var particleEmit = false
+    @State private var showARMode = false
 
+    @StateObject private var guide = AICompanionService.shared
     @Environment(\.dismiss) private var dismiss
 
     enum EncounterPhase {
@@ -65,6 +67,19 @@ struct CreatureEncounterView: View {
                     }
 
                     Spacer()
+
+                    // AR Mode toggle
+                    Button(action: { showARMode = true }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arkit")
+                            Text("AR")
+                                .font(.caption.weight(.bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.blue.opacity(0.5), in: Capsule())
+                    }
 
                     if let species = species {
                         VStack(alignment: .trailing, spacing: 2) {
@@ -110,17 +125,17 @@ struct CreatureEncounterView: View {
                         .rotationEffect(.degrees(glowPulse ? 360 : 0))
                         .animation(.linear(duration: 20).repeatForever(autoreverses: false), value: glowPulse)
 
-                    // Creature visual
+                    // Creature Card Art (AI-generated)
                     VStack(spacing: 8) {
-                        Image(systemName: species?.element.icon ?? "questionmark.circle")
-                            .font(.system(size: 80))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [species?.element.color ?? .white, species?.mythology.color ?? .gray],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                )
+                        if let species = species {
+                            CreatureCardView(
+                                species: species,
+                                creature: creature,
+                                isShiny: spawn.isShiny,
+                                showStats: encounterPhase == .idle,
+                                size: .large
                             )
-                            .shadow(color: species?.element.color.opacity(0.5) ?? .clear, radius: 15)
+                        }
 
                         if spawn.isShiny {
                             HStack(spacing: 4) {
@@ -265,10 +280,17 @@ struct CreatureEncounterView: View {
                 }
             }
         }
+        .overlay { RiftGuideOverlay() }
+        .fullScreenCover(isPresented: $showARMode) {
+            AREncounterView(spawn: spawn)
+        }
         .onAppear {
             creature = spawnManager.getCreatureForSpawn(spawn)
             glowPulse = true
             animateAppearance()
+            if let species = species {
+                guide.onCreatureEncounter(species: species, isShiny: spawn.isShiny)
+            }
         }
     }
 
@@ -385,6 +407,9 @@ struct CaptureSuccessView: View {
     let species: CreatureSpecies?
 
     @State private var showStats = false
+    @State private var cardScale: CGFloat = 0.1
+    @State private var cardRotation: Double = -30
+    @State private var burstOpacity: Double = 0
 
     var body: some View {
         VStack(spacing: 12) {
@@ -394,29 +419,42 @@ struct CaptureSuccessView: View {
                     LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing)
                 )
 
-            if let creature = creature {
-                VStack(spacing: 8) {
-                    Text(creature.name)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
+            // Card reveal animation
+            if let species = species {
+                ZStack {
+                    // Burst effect behind card
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [species.rarity.color.opacity(0.6), .clear],
+                                center: .center, startRadius: 10, endRadius: 120
+                            )
+                        )
+                        .frame(width: 240, height: 240)
+                        .opacity(burstOpacity)
 
-                    if showStats {
-                        // IV quality indicator
-                        let ivTotal = creature.ivHP + creature.ivAttack + creature.ivDefense + creature.ivSpeed + creature.ivSpecial
-                        let ivPercent = Double(ivTotal) / Double(31 * 5)
-                        let quality = ivPercent > 0.8 ? "Amazing!" : ivPercent > 0.6 ? "Strong" : ivPercent > 0.4 ? "Decent" : "OK"
+                    CreatureCardView(
+                        species: species,
+                        creature: creature,
+                        isShiny: creature?.isShiny ?? false,
+                        showStats: showStats,
+                        size: .medium
+                    )
+                    .scaleEffect(cardScale)
+                    .rotation3DEffect(.degrees(cardRotation), axis: (x: 0, y: 1, z: 0))
+                }
+            }
 
-                        Text("Appraisal: \(quality) (\(Int(ivPercent * 100))%)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(ivPercent > 0.8 ? .yellow : ivPercent > 0.6 ? .green : .white)
+            if let creature = creature, showStats {
+                VStack(spacing: 6) {
+                    // IV quality indicator
+                    let ivTotal = creature.ivHP + creature.ivAttack + creature.ivDefense + creature.ivSpeed + creature.ivSpecial
+                    let ivPercent = Double(ivTotal) / Double(31 * 5)
+                    let quality = ivPercent > 0.8 ? "Amazing!" : ivPercent > 0.6 ? "Strong" : ivPercent > 0.4 ? "Decent" : "OK"
 
-                        HStack(spacing: 16) {
-                            StatPill(label: "HP", value: creature.maxHP)
-                            StatPill(label: "ATK", value: creature.attack)
-                            StatPill(label: "DEF", value: creature.defense)
-                            StatPill(label: "SPD", value: creature.speed)
-                        }
-                    }
+                    Text("Appraisal: \(quality) (\(Int(ivPercent * 100))%)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ivPercent > 0.8 ? .yellow : ivPercent > 0.6 ? .green : .white)
 
                     Text("+100 XP  +25 Gold  +\(creature.rarity.stars * 3) \(creature.mythology.rawValue) Essence")
                         .font(.caption)
@@ -426,14 +464,25 @@ struct CaptureSuccessView: View {
             }
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Card flip-in animation
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                cardScale = 1.0
+                cardRotation = 0
+            }
+            withAnimation(.easeOut(duration: 0.4).delay(0.2)) {
+                burstOpacity = 1
+            }
+            withAnimation(.easeOut(duration: 0.8).delay(0.6)) {
+                burstOpacity = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 withAnimation { showStats = true }
             }
         }
     }
 }
 
-struct StatPill: View {
+struct EncounterStatPill: View {
     let label: String
     let value: Int
 

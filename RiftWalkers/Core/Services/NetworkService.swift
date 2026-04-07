@@ -18,6 +18,7 @@ final class NetworkService: ObservableObject {
     private let baseURL: URL
     private var authToken: String?
     private var refreshToken: String?
+    private let deviceID: String
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -36,8 +37,17 @@ final class NetworkService: ObservableObject {
         self.encoder.dateEncodingStrategy = .iso8601
         self.encoder.keyEncodingStrategy = .convertToSnakeCase
 
-        // Production API endpoint
-        self.baseURL = URL(string: "https://api.riftwalkers.app/v1")!
+        // Stable device ID for auth
+        if let stored = UserDefaults.standard.string(forKey: "riftwalkers_device_id") {
+            self.deviceID = stored
+        } else {
+            let newID = UUID().uuidString
+            UserDefaults.standard.set(newID, forKey: "riftwalkers_device_id")
+            self.deviceID = newID
+        }
+
+        // Production API endpoint (Cloudflare Worker)
+        self.baseURL = URL(string: "https://riftwalkers-api.heitkampnick23.workers.dev/v1")!
     }
 
     // MARK: - Auth
@@ -64,6 +74,7 @@ final class NetworkService: ObservableObject {
         urlRequest.httpMethod = method.rawValue
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("RiftWalkers-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        urlRequest.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
 
         if let token = authToken {
             urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -117,6 +128,71 @@ final class NetworkService: ObservableObject {
         }
 
         throw lastError ?? NetworkError.unknown
+    }
+
+    // MARK: - Auth API
+
+    func register(displayName: String) async throws -> AuthResponse {
+        let body = RegisterRequest(deviceId: deviceID, displayName: displayName)
+        let response: AuthResponse = try await request(endpoint: .register, method: .post, body: body)
+        setAuthToken(response.token, refresh: response.refreshToken)
+        KeychainService.shared.saveTokens(access: response.token, refresh: response.refreshToken)
+        KeychainService.shared.savePlayerID(response.playerId)
+        return response
+    }
+
+    func login() async throws -> AuthResponse {
+        let body = LoginRequest(deviceId: deviceID)
+        let response: AuthResponse = try await request(endpoint: .login, method: .post, body: body)
+        setAuthToken(response.token, refresh: response.refreshToken)
+        KeychainService.shared.saveTokens(access: response.token, refresh: response.refreshToken)
+        KeychainService.shared.savePlayerID(response.playerId)
+        return response
+    }
+
+    func restoreSession() -> Bool {
+        guard let access = KeychainService.shared.getAccessToken(),
+              let refresh = KeychainService.shared.getRefreshToken() else {
+            return false
+        }
+        setAuthToken(access, refresh: refresh)
+        return true
+    }
+
+    func logout() {
+        clearAuth()
+        KeychainService.shared.clearAll()
+    }
+
+    // MARK: - Game State API
+
+    func fetchGameState() async throws -> GameStateResponse {
+        try await request(endpoint: .gameState)
+    }
+
+    func saveGameState(_ state: GameStateSave) async throws -> SaveResponse {
+        try await request(endpoint: .saveGameState, method: .post, body: state)
+    }
+
+    func fetchCreatures() async throws -> CreaturesListResponse {
+        try await request(endpoint: .creatures)
+    }
+
+    func addCreature(_ creature: CreatureSaveData) async throws -> GenericResponse {
+        try await request(endpoint: .addCreature, method: .post, body: creature)
+    }
+
+    func evolveCreature(id: String, newSpeciesId: String, newStats: CreatureStatUpdate) async throws -> GenericResponse {
+        let body = EvolveRequest(creatureId: id, newSpeciesId: newSpeciesId, stats: newStats)
+        return try await request(endpoint: .evolveCreature, method: .post, body: body)
+    }
+
+    func fetchEssences() async throws -> EssencesResponse {
+        try await request(endpoint: .essences)
+    }
+
+    func fetchInventory() async throws -> InventoryResponse {
+        try await request(endpoint: .inventory)
     }
 
     // MARK: - Specific API Methods
@@ -186,36 +262,55 @@ final class NetworkService: ObservableObject {
         }
 
         struct RefreshBody: Encodable { let refreshToken: String }
-        struct RefreshResponse: Decodable { let accessToken: String; let refreshToken: String }
 
-        let response: RefreshResponse = try await request(
+        let response: AuthResponse = try await request(
             endpoint: .refreshToken,
             method: .post,
             body: RefreshBody(refreshToken: refresh)
         )
 
-        self.authToken = response.accessToken
+        self.authToken = response.token
         self.refreshToken = response.refreshToken
+        KeychainService.shared.saveTokens(access: response.token, refresh: response.refreshToken)
     }
 }
 
 // MARK: - API Endpoints
 
 enum APIEndpoint {
+    // Auth
+    case register
+    case login
+    case refreshToken
+    // Game state
+    case gameState
+    case saveGameState
+    // Player
+    case playerProfile
+    case updateLocation
+    // Creatures
+    case creatures
+    case addCreature
+    case evolveCreature
+    // Inventory & Essences
+    case inventory
+    case essences
+    // World
     case nearbySpawns(lat: Double, lng: Double, radius: Double)
     case nearbyTerritories(lat: Double, lng: Double, radius: Double)
     case nearbyDungeons(lat: Double, lng: Double, radius: Double)
     case captureCreature
-    case playerProfile
-    case updateLocation
+    // Social
     case leaderboard(type: LeaderboardType, page: Int)
-    case startBattle
-    case battleAction
-    case dailyQuests
-    case currentSeason
     case guild(id: UUID)
     case claimTerritory
-    case refreshToken
+    // Combat
+    case startBattle
+    case battleAction
+    // Quests & Seasons
+    case dailyQuests
+    case currentSeason
+    // Shop
     case shopItems
     case purchaseItem
     case tradeOffer
@@ -223,42 +318,37 @@ enum APIEndpoint {
 
     var path: String {
         switch self {
+        case .register: return "auth/register"
+        case .login: return "auth/login"
+        case .refreshToken: return "auth/refresh"
+        case .gameState: return "gamestate"
+        case .saveGameState: return "gamestate"
+        case .playerProfile: return "player/profile"
+        case .updateLocation: return "player/location"
+        case .creatures: return "creatures"
+        case .addCreature: return "creatures"
+        case .evolveCreature: return "creatures/evolve"
+        case .inventory: return "inventory"
+        case .essences: return "essences"
         case .nearbySpawns(let lat, let lng, let radius):
             return "spawns/nearby?lat=\(lat)&lng=\(lng)&radius=\(radius)"
         case .nearbyTerritories(let lat, let lng, let radius):
             return "territories/nearby?lat=\(lat)&lng=\(lng)&radius=\(radius)"
         case .nearbyDungeons(let lat, let lng, let radius):
             return "dungeons/nearby?lat=\(lat)&lng=\(lng)&radius=\(radius)"
-        case .captureCreature:
-            return "creatures/capture"
-        case .playerProfile:
-            return "player/profile"
-        case .updateLocation:
-            return "player/location"
+        case .captureCreature: return "creatures/capture"
         case .leaderboard(let type, let page):
             return "leaderboard/\(type.rawValue)?page=\(page)"
-        case .startBattle:
-            return "battle/start"
-        case .battleAction:
-            return "battle/action"
-        case .dailyQuests:
-            return "quests/daily"
-        case .currentSeason:
-            return "season/current"
-        case .guild(let id):
-            return "guild/\(id.uuidString)"
-        case .claimTerritory:
-            return "territory/claim"
-        case .refreshToken:
-            return "auth/refresh"
-        case .shopItems:
-            return "shop/items"
-        case .purchaseItem:
-            return "shop/purchase"
-        case .tradeOffer:
-            return "trade/offer"
-        case .guildChat(let id):
-            return "guild/\(id.uuidString)/chat"
+        case .startBattle: return "battle/start"
+        case .battleAction: return "battle/action"
+        case .dailyQuests: return "quests/daily"
+        case .currentSeason: return "season/current"
+        case .guild(let id): return "guild/\(id.uuidString)"
+        case .claimTerritory: return "territory/claim"
+        case .shopItems: return "shop/items"
+        case .purchaseItem: return "shop/purchase"
+        case .tradeOffer: return "trade/offer"
+        case .guildChat(let id): return "guild/\(id.uuidString)/chat"
         }
     }
 }
@@ -409,4 +499,174 @@ struct TerritoryClaimResult: Decodable {
     let success: Bool
     let territory: Territory?
     let message: String
+}
+
+// MARK: - Auth Models
+
+struct RegisterRequest: Encodable {
+    let deviceId: String
+    let displayName: String
+}
+
+struct LoginRequest: Encodable {
+    let deviceId: String
+}
+
+struct AuthResponse: Decodable {
+    let playerId: String
+    let displayName: String
+    let token: String
+    let refreshToken: String
+}
+
+// MARK: - Game State Models
+
+struct GameStateResponse: Decodable {
+    let player: PlayerData?
+    let creatures: [CreatureData]
+    let inventory: [InventoryData]
+    let achievements: [AchievementData]
+    let essences: [EssenceData]?
+}
+
+struct PlayerData: Decodable {
+    let id: String
+    let displayName: String
+    let level: Int
+    let xp: Int
+    let gold: Int
+    let riftGems: Int
+    let riftDust: Int
+    let seasonTokens: Int
+    let faction: String?
+    let totalCatches: Int
+    let totalBattles: Int
+    let totalDistanceKm: Double
+    let createdAt: String
+}
+
+struct CreatureData: Decodable {
+    let id: String
+    let speciesId: String
+    let nickname: String?
+    let level: Int
+    let xp: Int
+    let cp: Int
+    let hp: Int
+    let attack: Int
+    let defense: Int
+    let speed: Int
+    let ivHp: Int
+    let ivAttack: Int
+    let ivDefense: Int
+    let ivSpeed: Int
+    let isShiny: Int
+    let evolutionStage: Int
+    let caughtLatitude: Double?
+    let caughtLongitude: Double?
+    let createdAt: String
+}
+
+struct InventoryData: Decodable {
+    let id: String
+    let itemId: String
+    let itemType: String
+    let quantity: Int
+    let metadata: String?
+}
+
+struct AchievementData: Decodable {
+    let achievementId: String
+    let progress: Int
+    let completed: Int
+    let completedAt: String?
+}
+
+struct EssenceData: Decodable {
+    let mythology: String
+    let amount: Int
+}
+
+struct GameStateSave: Encodable {
+    let player: PlayerSaveData
+    let creatures: [CreatureSaveData]
+    let inventory: [InventorySaveData]
+}
+
+struct PlayerSaveData: Encodable {
+    let level: Int
+    let xp: Int
+    let gold: Int
+    let riftGems: Int
+    let riftDust: Int
+    let seasonTokens: Int
+    let totalCatches: Int
+    let totalBattles: Int
+    let totalDistanceKm: Double
+}
+
+struct CreatureSaveData: Encodable {
+    let id: String
+    let speciesId: String
+    let nickname: String?
+    let level: Int
+    let xp: Int
+    let cp: Int
+    let hp: Int
+    let attack: Int
+    let defense: Int
+    let speed: Int
+    let ivHp: Int
+    let ivAttack: Int
+    let ivDefense: Int
+    let ivSpeed: Int
+    let isShiny: Bool
+    let evolutionStage: Int
+    let caughtLatitude: Double?
+    let caughtLongitude: Double?
+}
+
+struct InventorySaveData: Encodable {
+    let itemId: String
+    let itemType: String
+    let quantity: Int
+}
+
+struct CreatureStatUpdate: Encodable {
+    let level: Int
+    let cp: Int
+    let hp: Int
+    let attack: Int
+    let defense: Int
+    let speed: Int
+    let evolutionStage: Int
+}
+
+struct EvolveRequest: Encodable {
+    let creatureId: String
+    let newSpeciesId: String
+    let stats: CreatureStatUpdate
+}
+
+struct GenericResponse: Decodable {
+    let success: Bool?
+    let message: String?
+    let id: String?
+}
+
+struct SaveResponse: Decodable {
+    let success: Bool
+    let message: String?
+}
+
+struct CreaturesListResponse: Decodable {
+    let creatures: [CreatureData]
+}
+
+struct EssencesResponse: Decodable {
+    let essences: [EssenceData]
+}
+
+struct InventoryResponse: Decodable {
+    let items: [InventoryData]
 }

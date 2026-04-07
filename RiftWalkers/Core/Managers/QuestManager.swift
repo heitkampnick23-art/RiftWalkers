@@ -34,53 +34,48 @@ final class QuestManager: ObservableObject {
     }
 
     // MARK: - Daily Quest Generation
-    // Rotate daily at midnight local time. 4 quests + 1 bonus for completing all 4.
 
     func generateDailyQuests() {
         dailyQuests = [
-            Quest(
-                id: UUID(), title: "Morning Patrol",
+            makeQuest(
+                title: "Morning Patrol",
                 description: "Capture 3 creatures to survey rift activity.",
-                type: .daily, mythology: nil,
+                type: .daily,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Capture 3 creatures", type: .catchCreature, targetCount: 3, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Capture 3 creatures", type: .catchCreature, target: 3)
                 ],
-                rewards: QuestRewards(experience: 200, gold: 150, riftGems: 5, items: [], essences: [:], battlePassXP: 100),
-                expiresAt: endOfDay(), isCompleted: false, isActive: true, requiredLevel: 1,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 200, stardust: 150, mythosTokens: 5,
+                expiresAt: endOfDay()
             ),
-            Quest(
-                id: UUID(), title: "Walker's Exercise",
+            makeQuest(
+                title: "Walker's Exercise",
                 description: "Walk 2km to strengthen your rift bond.",
-                type: .daily, mythology: nil,
+                type: .daily,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Walk 2km", type: .walkDistance, targetCount: 2000, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Walk 2km", type: .walkDistance, target: 2000)
                 ],
-                rewards: QuestRewards(experience: 250, gold: 100, riftGems: 5, items: ["incense_x1"], essences: [:], battlePassXP: 100),
-                expiresAt: endOfDay(), isCompleted: false, isActive: true, requiredLevel: 1,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 250, stardust: 100, mythosTokens: 5,
+                expiresAt: endOfDay()
             ),
-            Quest(
-                id: UUID(), title: "Battle Training",
+            makeQuest(
+                title: "Battle Training",
                 description: "Win 2 battles to hone your creatures' skills.",
-                type: .daily, mythology: nil,
+                type: .daily,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Win 2 battles", type: .defeatCreature, targetCount: 2, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Win 2 battles", type: .winBattle, target: 2)
                 ],
-                rewards: QuestRewards(experience: 300, gold: 200, riftGems: 5, items: [], essences: [:], battlePassXP: 100),
-                expiresAt: endOfDay(), isCompleted: false, isActive: true, requiredLevel: 3,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 300, stardust: 200, mythosTokens: 5,
+                expiresAt: endOfDay()
             ),
-            Quest(
-                id: UUID(), title: "Territory Scout",
+            makeQuest(
+                title: "Territory Scout",
                 description: "Visit 2 territories to gather intel.",
-                type: .daily, mythology: nil,
+                type: .daily,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Visit 2 territories", type: .visitTerritory, targetCount: 2, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Visit 2 territories", type: .visitPOI, target: 2)
                 ],
-                rewards: QuestRewards(experience: 200, gold: 150, riftGems: 5, items: [], essences: [:], battlePassXP: 100),
-                expiresAt: endOfDay(), isCompleted: false, isActive: true, requiredLevel: 5,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 200, stardust: 150, mythosTokens: 5,
+                expiresAt: endOfDay()
             ),
         ]
     }
@@ -89,109 +84,73 @@ final class QuestManager: ObservableObject {
         let endOfWeek = Calendar.current.date(byAdding: .day, value: 7, to: startOfDay()) ?? Date()
 
         weeklyQuests = [
-            Quest(
-                id: UUID(), title: "Rift Researcher",
+            makeQuest(
+                title: "Rift Researcher",
                 description: "Capture 20 creatures this week for the research archive.",
-                type: .weekly, mythology: nil,
+                type: .weekly,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Capture 20 creatures", type: .catchCreature, targetCount: 20, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Capture 20 creatures", type: .catchCreature, target: 20)
                 ],
-                rewards: QuestRewards(experience: 1500, gold: 1000, riftGems: 30, items: ["ultra_sphere_x5"], essences: [:], battlePassXP: 500),
-                expiresAt: endOfWeek, isCompleted: false, isActive: true, requiredLevel: 1,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 1500, stardust: 1000, mythosTokens: 30,
+                expiresAt: endOfWeek
             ),
-            Quest(
-                id: UUID(), title: "Rift Walker Marathon",
+            makeQuest(
+                title: "Rift Walker Marathon",
                 description: "Walk 25km this week. The rifts respond to movement.",
-                type: .weekly, mythology: nil,
+                type: .weekly,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Walk 25km", type: .walkDistance, targetCount: 25000, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Walk 25km", type: .walkDistance, target: 25000)
                 ],
-                rewards: QuestRewards(experience: 2000, gold: 800, riftGems: 50, items: ["rift_key_x2"], essences: [:], battlePassXP: 750),
-                expiresAt: endOfWeek, isCompleted: false, isActive: true, requiredLevel: 1,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 2000, stardust: 800, mythosTokens: 50,
+                expiresAt: endOfWeek
             ),
-            Quest(
-                id: UUID(), title: "Mythology Expert",
+            makeQuest(
+                title: "Mythology Expert",
                 description: "Capture creatures from 5 different mythologies.",
-                type: .weekly, mythology: nil,
+                type: .weekly,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Capture from 5 mythologies", type: .catchMythologyCreature, targetCount: 5, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Capture from 5 mythologies", type: .catchCreatureOfMythology, target: 5)
                 ],
-                rewards: QuestRewards(experience: 1800, gold: 1200, riftGems: 40, items: [], essences: [:], battlePassXP: 600),
-                expiresAt: endOfWeek, isCompleted: false, isActive: true, requiredLevel: 5,
-                chainID: nil, chainIndex: nil, narrativeText: nil
+                xp: 1800, stardust: 1200, mythosTokens: 40,
+                expiresAt: endOfWeek
             ),
         ]
     }
 
     // MARK: - Story Quests
-    // Main narrative: The rifts between mythological realms are opening.
-    // Player must discover why and choose how to respond (faction-based branching).
 
     private func loadStoryQuests() {
         storyQuests = [
-            Quest(
-                id: UUID(), title: "The First Rift",
+            makeQuest(
+                title: "The First Rift",
                 description: "A strange shimmer appeared near your location. Investigate the anomaly.",
-                type: .story, mythology: nil,
+                type: .story,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Walk to the rift anomaly", type: .walkDistance, targetCount: 100, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil),
-                    QuestObjective(id: UUID(), description: "Capture your first creature", type: .catchCreature, targetCount: 1, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Walk to the rift anomaly", type: .walkDistance, target: 100),
+                    makeObjective("Capture your first creature", type: .catchCreature, target: 1)
                 ],
-                rewards: QuestRewards(experience: 500, gold: 500, riftGems: 25, items: ["great_sphere_x10", "potion_x5"], essences: [:], battlePassXP: 200),
-                expiresAt: nil, isCompleted: false, isActive: true, requiredLevel: 1,
-                chainID: "main_story", chainIndex: 1,
-                narrativeText: """
-                You feel it before you see it — a vibration in the air, like the world is holding its breath. \
-                Then the shimmer appears: a tear in reality itself, edges crackling with ancient energy.
-
-                Through the rift, you glimpse impossible things — creatures from legends, myths your \
-                grandmother told you were just stories. But they're real. They're here.
-
-                And they're looking right at you.
-
-                Welcome, Rift Walker. The mythic realms are bleeding into our world. \
-                Whether you protect it, harness it, or seek balance — that choice is yours.
-                """
+                xp: 500, stardust: 500, mythosTokens: 25,
+                isMainStory: true, chapterIndex: 1
             ),
-            Quest(
-                id: UUID(), title: "Echoes of Olympus",
+            makeQuest(
+                title: "Echoes of Olympus",
                 description: "Greek mythological creatures have been spotted. Track them down.",
                 type: .mythology, mythology: .greek,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Capture 3 Greek creatures", type: .catchMythologyCreature, targetCount: 3, currentCount: 0, targetSpecies: nil, targetMythology: .greek, targetLocation: nil, targetRadius: nil),
-                    QuestObjective(id: UUID(), description: "Win a battle using a Greek creature", type: .defeatCreature, targetCount: 1, currentCount: 0, targetSpecies: nil, targetMythology: .greek, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Capture 3 Greek creatures", type: .catchCreatureOfMythology, target: 3, details: ["mythology": "greek"]),
+                    makeObjective("Win a battle using a Greek creature", type: .winBattle, target: 1, details: ["mythology": "greek"])
                 ],
-                rewards: QuestRewards(experience: 800, gold: 600, riftGems: 15, items: [], essences: [.greek: 50], battlePassXP: 300),
-                expiresAt: nil, isCompleted: false, isActive: false, requiredLevel: 3,
-                chainID: "greek_story", chainIndex: 1,
-                narrativeText: """
-                The air smells of olives and sea salt. Somewhere nearby, you hear the distant \
-                clash of bronze on bronze. The Greek rift is open, and Olympus is leaking into the mortal world.
-
-                A weathered stone tablet materializes before you, inscribed with ancient Greek: \
-                "Prove yourself worthy. Capture the children of myth."
-                """
+                xp: 800, stardust: 600, mythosTokens: 15
             ),
-            Quest(
-                id: UUID(), title: "Whispers of Yggdrasil",
+            makeQuest(
+                title: "Whispers of Yggdrasil",
                 description: "Norse creatures stir as Yggdrasil's roots crack through the rift.",
                 type: .mythology, mythology: .norse,
                 objectives: [
-                    QuestObjective(id: UUID(), description: "Capture 3 Norse creatures", type: .catchMythologyCreature, targetCount: 3, currentCount: 0, targetSpecies: nil, targetMythology: .norse, targetLocation: nil, targetRadius: nil),
-                    QuestObjective(id: UUID(), description: "Explore during night time", type: .walkDistance, targetCount: 1000, currentCount: 0, targetSpecies: nil, targetMythology: nil, targetLocation: nil, targetRadius: nil)
+                    makeObjective("Capture 3 Norse creatures", type: .catchCreatureOfMythology, target: 3, details: ["mythology": "norse"]),
+                    makeObjective("Explore during night time", type: .walkDistance, target: 1000)
                 ],
-                rewards: QuestRewards(experience: 800, gold: 600, riftGems: 15, items: [], essences: [.norse: 50], battlePassXP: 300),
-                expiresAt: nil, isCompleted: false, isActive: false, requiredLevel: 3,
-                chainID: "norse_story", chainIndex: 1,
-                narrativeText: """
-                Frost creeps across the ground despite the season. The world tree groans in a language \
-                older than words, and from the frost emerges a rune, glowing with cold blue fire.
-
-                "Walk the path of the Allfather," it reads. "The nine realms bleed, and only \
-                those brave enough to walk the frost will understand why."
-                """
+                xp: 800, stardust: 600, mythosTokens: 15
             ),
         ]
     }
@@ -209,63 +168,89 @@ final class QuestManager: ObservableObject {
                 guard obj.type == type && !obj.isComplete else { continue }
 
                 // Check mythology filter
-                if let targetMyth = obj.targetMythology, targetMyth != mythology { continue }
-                // Check species filter
-                if let targetSpecies = obj.targetSpecies, targetSpecies != species { continue }
+                if let targetMyth = obj.targetDetails["mythology"],
+                   let myth = mythology, targetMyth != myth.rawValue.lowercased() { continue }
 
-                allQuests[questIndex].objectives[objIndex].currentCount += increment
-            }
+                allQuests[questIndex].objectives[objIndex].currentProgress += increment
 
-            // Check if quest is now complete
-            let allObjectivesComplete = allQuests[questIndex].objectives.allSatisfy { $0.isComplete }
-            if allObjectivesComplete && !allQuests[questIndex].isCompleted {
-                completeQuest(&allQuests[questIndex])
+                if allQuests[questIndex].isCompleted {
+                    completeQuest(allQuests[questIndex])
+                }
             }
         }
 
-        // Reassign back to categories
-        syncQuests(allQuests)
-    }
-
-    private func completeQuest(_ quest: inout Quest) {
-        quest.isCompleted = true
-        completedQuestCount += 1
-
-        // Award rewards
-        let rewards = quest.rewards
-        progression.awardXP(amount: rewards.experience, source: .questComplete)
-        economy.earn(gold: rewards.gold, gems: rewards.riftGems)
-        for (myth, amount) in rewards.essences {
-            economy.earn(essence: (myth, amount))
-        }
-        progression.awardBattlePassXP(rewards.battlePassXP)
-
-        audio.playSFX(.questComplete)
-        haptics.notification(.success)
-
-        // Activate next quest in chain
-        if let chainID = quest.chainID, let chainIndex = quest.chainIndex {
-            activateNextInChain(chainID: chainID, afterIndex: chainIndex)
-        }
-    }
-
-    private func activateNextInChain(chainID: String, afterIndex: Int) {
-        if let nextIndex = storyQuests.firstIndex(where: { $0.chainID == chainID && $0.chainIndex == afterIndex + 1 }) {
-            storyQuests[nextIndex].isActive = true
-        }
-    }
-
-    private func syncQuests(_ allQuests: [Quest]) {
+        // Sync back
         dailyQuests = allQuests.filter { $0.type == .daily }
         weeklyQuests = allQuests.filter { $0.type == .weekly }
         storyQuests = allQuests.filter { $0.type == .story || $0.type == .mythology }
         eventQuests = allQuests.filter { $0.type == .event }
     }
 
+    func completeQuest(_ quest: Quest) {
+        completedQuestCount += 1
+        let rewards = quest.rewards
+
+        progression.awardXP(amount: rewards.xp, source: .questComplete)
+        economy.earn(gold: rewards.stardust)
+        progression.awardBattlePassXP(100)
+
+        haptics.levelUp()
+        audio.playSFX(.achievementUnlock)
+    }
+
+    func abandonQuest(_ quest: Quest) {
+        dailyQuests.removeAll { $0.id == quest.id }
+        weeklyQuests.removeAll { $0.id == quest.id }
+        storyQuests.removeAll { $0.id == quest.id }
+        eventQuests.removeAll { $0.id == quest.id }
+    }
+
     // MARK: - Helpers
 
+    private func makeQuest(
+        title: String,
+        description: String,
+        type: Quest.QuestType,
+        mythology: Mythology? = nil,
+        objectives: [QuestObjective],
+        xp: Int, stardust: Int, mythosTokens: Int,
+        expiresAt: Date? = nil,
+        isMainStory: Bool = false,
+        chapterIndex: Int? = nil
+    ) -> Quest {
+        Quest(
+            id: UUID().uuidString,
+            title: title,
+            description: description,
+            type: type,
+            mythology: mythology,
+            objectives: objectives,
+            rewards: QuestRewards(xp: xp, stardust: stardust, mythosTokens: mythosTokens, items: [:], creatureTemplateID: nil),
+            expiresAt: expiresAt,
+            isMainStory: isMainStory,
+            chapterIndex: chapterIndex ?? 0,
+            prerequisiteQuestIDs: []
+        )
+    }
+
+    private func makeObjective(
+        _ description: String,
+        type: QuestObjective.ObjectiveType,
+        target: Int,
+        details: [String: String] = [:]
+    ) -> QuestObjective {
+        QuestObjective(
+            id: UUID().uuidString,
+            description: description,
+            type: type,
+            currentProgress: 0,
+            targetProgress: target,
+            targetDetails: details
+        )
+    }
+
     private func endOfDay() -> Date {
-        Calendar.current.startOfDay(for: Date()).addingTimeInterval(86400)
+        Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: Date()) ?? Date()
     }
 
     private func startOfDay() -> Date {

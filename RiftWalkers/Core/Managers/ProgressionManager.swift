@@ -17,6 +17,7 @@ final class ProgressionManager: ObservableObject {
     static let shared = ProgressionManager()
 
     @Published var player: Player
+    @Published var ownedCreatures: [Creature] = []
     @Published var collectionProgress: Double = 0
     @Published var mythologyProgress: [Mythology: Double] = [:]
     @Published var weeklyXPEarned: Int = 0
@@ -200,13 +201,14 @@ final class ProgressionManager: ObservableObject {
     // MARK: - Creature Management
 
     func addCreature(_ creature: Creature) {
+        ownedCreatures.append(creature)
         player.creatures.append(creature.id)
         player.creaturesCaught += 1
         awardXP(amount: 100, source: .creatureCapture)
         economy.earn(gold: 25, essence: (creature.mythology, creature.rarity.stars * 3))
 
         // New species bonus
-        let isNew = player.creaturesSeen < player.creaturesCaught
+        let isNew = !ownedCreatures.dropLast().contains(where: { $0.speciesID == creature.speciesID })
         if isNew {
             player.creaturesSeen += 1
             awardXP(amount: 500, source: .newCreatureDiscovery)
@@ -217,20 +219,53 @@ final class ProgressionManager: ObservableObject {
         checkAchievements()
     }
 
-    func evolveCreature(_ creature: inout Creature) -> Bool {
+    func getCreature(by id: UUID) -> Creature? {
+        ownedCreatures.first(where: { $0.id == id })
+    }
+
+    func canEvolveCreature(_ creature: Creature) -> (canEvolve: Bool, reason: String?) {
+        guard let species = SpeciesDatabase.shared.getSpecies(creature.speciesID),
+              species.evolvesInto != nil else {
+            return (false, "This creature has reached its final form.")
+        }
+
+        guard let cost = creature.evolutionCost else {
+            return (false, "No evolution cost data available.")
+        }
+
+        if creature.level < cost.requiredLevel {
+            return (false, "Requires level \(cost.requiredLevel). Currently level \(creature.level).")
+        }
+
+        if !economy.canAfford(gold: cost.goldCost, essence: (creature.mythology, cost.essenceCost)) {
+            let essenceNeeded = cost.essenceCost
+            let essenceHave = economy.essences[creature.mythology] ?? 0
+            if economy.gold < cost.goldCost {
+                return (false, "Need \(cost.goldCost) Gold (have \(economy.gold)).")
+            }
+            return (false, "Need \(essenceNeeded) \(creature.mythology.rawValue) Essence (have \(essenceHave)).")
+        }
+
+        return (true, nil)
+    }
+
+    func evolveCreature(id: UUID) -> Creature? {
+        guard let index = ownedCreatures.firstIndex(where: { $0.id == id }) else { return nil }
+
+        var creature = ownedCreatures[index]
         guard creature.canEvolve,
               let cost = creature.evolutionCost,
-              creature.level >= cost.requiredLevel else { return false }
+              creature.level >= cost.requiredLevel else { return nil }
 
         guard economy.spend(
             gold: cost.goldCost,
             essence: (creature.mythology, cost.essenceCost)
-        ) else { return false }
+        ) else { return nil }
 
         // Get evolution target
         guard let species = SpeciesDatabase.shared.getSpecies(creature.speciesID),
               let evolvedID = species.evolvesInto,
-              let evolvedSpecies = SpeciesDatabase.shared.getSpecies(evolvedID) else { return false }
+              let evolvedSpecies = SpeciesDatabase.shared.getSpecies(evolvedID) else { return nil }
 
         // Apply evolution
         creature.speciesID = evolvedSpecies.id
@@ -244,11 +279,26 @@ final class ProgressionManager: ObservableObject {
         creature.canEvolve = evolvedSpecies.evolvesInto != nil
         creature.currentHP = creature.maxHP
 
+        // Update evolution cost for next stage
+        if let nextID = evolvedSpecies.evolvesInto, SpeciesDatabase.shared.getSpecies(nextID) != nil {
+            creature.evolutionCost = EvolutionCost(
+                essenceCost: cost.essenceCost * 2,
+                goldCost: cost.goldCost * 2,
+                requiredLevel: cost.requiredLevel + 10,
+                requiredItem: nil
+            )
+        } else {
+            creature.evolutionCost = nil
+        }
+
+        ownedCreatures[index] = creature
+
         awardXP(amount: 500, source: .creatureEvolve)
         audio.playSFX(.evolution)
-        haptics.levelUp()
+        haptics.evolution()
 
-        return true
+        checkAchievements()
+        return creature
     }
 
     // MARK: - Daily Login Streak
@@ -297,37 +347,7 @@ final class ProgressionManager: ObservableObject {
     // MARK: - Achievement Checking
 
     private func checkAchievements() {
-        let potentialAchievements: [(String, String, String, AchievementTier, Bool, String?)] = [
-            ("First Catch", "Capture your first creature", "circle.fill", .bronze, player.creaturesCaught >= 1, nil),
-            ("Collector", "Capture 50 creatures", "square.grid.3x3.fill", .silver, player.creaturesCaught >= 50, nil),
-            ("Master Collector", "Capture 500 creatures", "square.grid.3x3.fill", .gold, player.creaturesCaught >= 500, "Master Collector"),
-            ("First Steps", "Walk 1km total", "figure.walk", .bronze, player.totalDistanceWalked >= 1000, nil),
-            ("Marathon Walker", "Walk 100km total", "figure.walk", .gold, player.totalDistanceWalked >= 100000, "The Wanderer"),
-            ("Territory Lord", "Claim 10 territories", "flag.fill", .silver, player.territoriesClaimed >= 10, "Territory Lord"),
-            ("Rift Diver", "Clear 25 Rift Dungeons", "tornado", .silver, player.riftsCleared >= 25, "Rift Diver"),
-            ("PvP Champion", "Win 100 PvP battles", "figure.fencing", .gold, player.pvpWins >= 100, "Champion"),
-            ("Dedication", "Login 30 days in a row", "calendar", .gold, player.dailyStreak >= 30, "The Dedicated"),
-            ("Myth Scholar", "Complete all mythology questlines", "book.fill", .platinum, false, "Myth Scholar"),
-        ]
-
-        for (name, desc, icon, tier, condition, rewardTitle) in potentialAchievements {
-            let alreadyUnlocked = player.achievements.contains { $0.name == name && $0.isUnlocked }
-            if condition && !alreadyUnlocked {
-                let achievement = Achievement(
-                    id: UUID(),
-                    name: name,
-                    description: desc,
-                    icon: icon,
-                    tier: tier,
-                    isUnlocked: true,
-                    unlockedDate: Date(),
-                    rewardTitle: rewardTitle
-                )
-                player.achievements.append(achievement)
-                audio.playSFX(.achievementUnlock)
-                haptics.notification(.success)
-            }
-        }
+        AchievementManager.shared.checkAll(player: player, creatures: ownedCreatures)
     }
 
     // MARK: - Walking Rewards (Egg hatching / adventure sync style)

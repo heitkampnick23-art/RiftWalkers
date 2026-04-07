@@ -82,7 +82,7 @@ final class LocationService: NSObject, ObservableObject {
         let region = CLCircularRegion(
             center: territory.location.coordinate,
             radius: territory.radius,
-            identifier: territory.id.uuidString
+            identifier: territory.id
         )
         region.notifyOnEntry = true
         region.notifyOnExit = true
@@ -91,9 +91,9 @@ final class LocationService: NSObject, ObservableObject {
     }
 
     func stopMonitoringTerritory(_ territory: Territory) {
-        if let region = monitoredRegions.first(where: { $0.identifier == territory.id.uuidString }) {
+        if let region = monitoredRegions.first(where: { $0.identifier == territory.id }) {
             locationManager.stopMonitoring(for: region)
-            monitoredRegions.removeAll { $0.identifier == territory.id.uuidString }
+            monitoredRegions.removeAll { $0.identifier == territory.id }
         }
     }
 

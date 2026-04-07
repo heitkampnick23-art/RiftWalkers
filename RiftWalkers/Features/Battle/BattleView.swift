@@ -306,7 +306,7 @@ struct HPBar: View {
                     Capsule().fill(.white.opacity(0.15))
                     Capsule()
                         .fill(barColor)
-                        .frame(width: geo.size.width * max(0, percentage))
+                        .frame(width: geo.size.width * Swift.max(0, percentage))
                         .animation(.easeInOut(duration: 0.3), value: current)
                 }
             }
