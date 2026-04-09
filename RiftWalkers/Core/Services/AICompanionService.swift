@@ -148,9 +148,10 @@ final class AICompanionService: ObservableObject {
 
     private func generateAmbientNarration(mythology: Mythology?, timeOfDay: String) async {
         let mythStr = mythology?.rawValue ?? "mixed"
+        let player = await MainActor.run { ProgressionManager.shared.player }
         let context: [String: Any] = [
-            "playerLevel": ProgressionManager.shared.player.level,
-            "creaturesOwned": ProgressionManager.shared.player.creaturesCaught,
+            "playerLevel": player.level,
+            "creaturesOwned": player.creaturesCaught,
             "currentMythology": mythStr,
             "timeOfDay": timeOfDay,
             "recentEvent": "exploring"
@@ -192,20 +193,38 @@ final class AICompanionService: ObservableObject {
     }
 
     private func askCompanionAPI(message: String, context: [String: Any]) async -> String? {
+        guard let url = URL(string: "\(proxyBaseURL)/v1/companion/chat") else {
+            print("[Companion] Invalid URL")
+            return nil
+        }
+
         do {
-            var request = URLRequest(url: URL(string: "\(proxyBaseURL)/v1/companion/chat")!)
+            var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 15
+
+            // Convert ArraySlice to Array to prevent JSONSerialization crash
+            let recentHistory = Array(conversationHistory.suffix(6))
 
             let body: [String: Any] = [
                 "message": message,
                 "context": context,
-                "history": conversationHistory.suffix(6)
+                "history": recentHistory
             ]
+
+            guard JSONSerialization.isValidJSONObject(body) else {
+                print("[Companion] Invalid JSON body")
+                return nil
+            }
+
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
             let (data, resp) = try await session.data(for: request)
-            guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+            guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+                print("[Companion] API returned status: \((resp as? HTTPURLResponse)?.statusCode ?? -1)")
+                return nil
+            }
 
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let response = json["response"] as? String {
@@ -526,8 +545,10 @@ struct CompanionChatView: View {
     @ViewBuilder
     private func QuickQuestion(_ text: String) -> some View {
         Button {
-            inputText = text
-            sendMessage()
+            guard !companion.isThinking else { return }
+            Task {
+                _ = await companion.askQuestion(text)
+            }
         } label: {
             Text(text)
                 .font(.caption)
@@ -537,6 +558,7 @@ struct CompanionChatView: View {
                 .background(.cyan.opacity(0.1), in: Capsule())
                 .overlay(Capsule().stroke(.cyan.opacity(0.3), lineWidth: 1))
         }
+        .disabled(companion.isThinking)
     }
 }
 

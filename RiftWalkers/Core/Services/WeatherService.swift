@@ -135,6 +135,9 @@ final class WeatherService: ObservableObject {
 
     // MARK: - Fetch Weather
 
+    /// Fetches real weather via WeatherKit. Falls back to time/season estimation on failure.
+    /// WeatherKit is used to drive creature spawn mechanics — different weather conditions
+    /// boost different elemental creature types (rain boosts water, storms boost lightning, etc).
     func fetchWeather(for location: CLLocation) async {
         do {
             let weather = try await weatherService.weather(for: location)
@@ -153,9 +156,15 @@ final class WeatherService: ObservableObject {
                 }
             }
         } catch {
-            print("[Weather] Fetch failed: \(error) — using defaults")
+            // WeatherKit may fail if capability not provisioned or no network.
+            // Gracefully fall back to time/season-based estimation.
+            print("[Weather] Fetch failed: \(error) — using time/season defaults")
             await MainActor.run {
                 self.currentCondition = estimateFromTimeAndSeason()
+                self.weatherSpawnBoosts = self.currentCondition.elementBoosts
+                for (element, boost) in self.season.elementBoosts {
+                    self.weatherSpawnBoosts[element, default: 1.0] *= boost
+                }
             }
         }
     }
