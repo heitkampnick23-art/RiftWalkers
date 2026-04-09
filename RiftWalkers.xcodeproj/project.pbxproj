@@ -57,6 +57,7 @@
 		A100000053 /* LiDARService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000053 /* LiDARService.swift */; };
 		A100000054 /* AntiCheatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000054 /* AntiCheatService.swift */; };
 		A100000055 /* AccessibilityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000055 /* AccessibilityService.swift */; };
+		A100000056 /* ContentModerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000056 /* ContentModerationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -113,6 +114,7 @@
 		B100000053 /* LiDARService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiDARService.swift; sourceTree = "<group>"; };
 		B100000054 /* AntiCheatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntiCheatService.swift; sourceTree = "<group>"; };
 		B100000055 /* AccessibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityService.swift; sourceTree = "<group>"; };
+		B100000056 /* ContentModerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentModerationService.swift; sourceTree = "<group>"; };
 		B100000050 /* RiftWalkers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RiftWalkers.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -208,6 +210,7 @@
 				B100000053 /* LiDARService.swift */,
 				B100000054 /* AntiCheatService.swift */,
 				B100000055 /* AccessibilityService.swift */,
+				B100000056 /* ContentModerationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -465,6 +468,7 @@
 				A100000053 /* LiDARService.swift in Sources */,
 				A100000054 /* AntiCheatService.swift in Sources */,
 				A100000055 /* AccessibilityService.swift in Sources */,
+				A100000056 /* ContentModerationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -584,7 +588,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = RiftWalkers/RiftWalkers.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = GY47UX52TR;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RiftWalkers/Info.plist;
@@ -620,7 +624,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = RiftWalkers/RiftWalkers.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = GY47UX52TR;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RiftWalkers/Info.plist;

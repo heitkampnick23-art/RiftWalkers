@@ -7,6 +7,7 @@ import SwiftUI
 
 struct SocialView: View {
     @StateObject private var guildMgr = GuildManager.shared
+    @StateObject private var moderation = ContentModerationService.shared
     @State private var selectedTab: SocialTab = .guild
     @State private var showCreateGuild = false
     @State private var showAddFriend = false
@@ -17,6 +18,8 @@ struct SocialView: View {
     @State private var guildNameInput = ""
     @State private var guildTagInput = ""
     @State private var selectedFaction: Faction = .phantoms
+    @State private var showReportSheet = false
+    @State private var reportTargetName = ""
 
     enum SocialTab: String, CaseIterable {
         case guild = "Guild"
@@ -65,6 +68,15 @@ struct SocialView: View {
             }
             .sheet(isPresented: $showAddFriend) {
                 addFriendSheet
+            }
+            .sheet(isPresented: $showReportSheet) {
+                ReportContentView(
+                    contentType: .username,
+                    contentId: reportTargetName,
+                    userId: reportTargetName,
+                    userName: reportTargetName,
+                    onDismiss: { showReportSheet = false }
+                )
             }
         }
     }
@@ -309,12 +321,27 @@ struct SocialView: View {
 
                 // Demo leaderboard entries
                 ForEach(0..<10, id: \.self) { rank in
+                    let name = demoNames[rank % demoNames.count]
                     LeaderboardRow(
                         rank: rank + 1,
-                        name: demoNames[rank % demoNames.count],
+                        name: name,
                         score: max(1000, 15000 - rank * 1200 + Int.random(in: -200...200)),
                         faction: Faction.allCases[rank % 3]
                     )
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            reportTargetName = name
+                            showReportSheet = true
+                        } label: {
+                            Label("Report Player", systemImage: "exclamationmark.triangle")
+                        }
+                        Button(role: .destructive) {
+                            moderation.blockUser(name)
+                            HapticsService.shared.notification(.warning)
+                        } label: {
+                            Label("Block Player", systemImage: "hand.raised.fill")
+                        }
+                    }
                 }
             }
             .padding(.vertical)

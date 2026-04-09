@@ -23,6 +23,8 @@ final class GuildManager: ObservableObject {
 
     func createGuild(name: String, tag: String, faction: Faction) -> Bool {
         guard !isInGuild else { return false }
+        guard ContentModerationService.shared.isContentAppropriate(name) else { return false }
+        guard ContentModerationService.shared.isContentAppropriate(tag) else { return false }
         guard EconomyManager.shared.spend(gold: 1000) else { return false }
 
         let playerName = ProgressionManager.shared.player.displayName
@@ -102,10 +104,14 @@ final class GuildManager: ObservableObject {
     }
 
     func sendMessage(_ text: String) {
+        // Content moderation: filter profanity before sending
+        let filtered = ContentModerationService.shared.filterContent(text)
+        let cleanText = filtered.filtered
+
         let msg = GuildChatMessage(
             id: UUID().uuidString,
             senderName: ProgressionManager.shared.player.displayName,
-            text: text,
+            text: cleanText,
             timestamp: Date(),
             isSystem: false
         )

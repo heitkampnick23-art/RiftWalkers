@@ -2,9 +2,13 @@ import SwiftUI
 
 struct GuildDetailView: View {
     @StateObject private var guildMgr = GuildManager.shared
+    @StateObject private var moderation = ContentModerationService.shared
     @State private var selectedTab: GuildTab = .info
     @State private var chatInput = ""
     @State private var showLeaveConfirm = false
+    @State private var showReportSheet = false
+    @State private var reportTargetMessage: GuildChatMessage?
+    @State private var reportTargetMember: GuildMember?
 
     enum GuildTab: String, CaseIterable {
         case info = "Info"
@@ -39,6 +43,25 @@ struct GuildDetailView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("You will lose access to guild territories and chat.")
+            }
+            .sheet(isPresented: $showReportSheet) {
+                if let msg = reportTargetMessage {
+                    ReportContentView(
+                        contentType: .chatMessage,
+                        contentId: msg.id,
+                        userId: msg.senderName,
+                        userName: msg.senderName,
+                        onDismiss: { showReportSheet = false; reportTargetMessage = nil }
+                    )
+                } else if let member = reportTargetMember {
+                    ReportContentView(
+                        contentType: .username,
+                        contentId: member.id,
+                        userId: member.id,
+                        userName: member.name,
+                        onDismiss: { showReportSheet = false; reportTargetMember = nil }
+                    )
+                }
             }
         }
     }
@@ -198,13 +221,21 @@ struct GuildDetailView: View {
                     return a.isOnline && !b.isOnline
                 }
 
-                ForEach(sorted) { member in
+                ForEach(sorted.filter { !moderation.isBlocked($0.id) }) { member in
                     MemberRow(
                         member: member,
                         isCurrentPlayer: member.name == ProgressionManager.shared.player.displayName,
                         canManage: guildMgr.isOfficer,
                         onPromote: { guildMgr.promoteToOfficer(member.id) },
-                        onKick: { guildMgr.kickMember(member.id) }
+                        onKick: { guildMgr.kickMember(member.id) },
+                        onReport: {
+                            reportTargetMember = member
+                            showReportSheet = true
+                        },
+                        onBlock: {
+                            moderation.blockUser(member.id)
+                            HapticsService.shared.notification(.warning)
+                        }
                     )
                 }
             }
@@ -231,9 +262,25 @@ struct GuildDetailView: View {
                             .padding(.top, 60)
                         }
 
-                        ForEach(guildMgr.guildChat) { msg in
+                        ForEach(guildMgr.guildChat.filter { !moderation.isBlocked($0.senderName) }) { msg in
                             ChatBubble(message: msg, isOwnMessage: msg.senderName == ProgressionManager.shared.player.displayName)
                                 .id(msg.id)
+                                .contextMenu {
+                                    if msg.senderName != ProgressionManager.shared.player.displayName && !msg.isSystem {
+                                        Button(role: .destructive) {
+                                            reportTargetMessage = msg
+                                            showReportSheet = true
+                                        } label: {
+                                            Label("Report Message", systemImage: "exclamationmark.triangle")
+                                        }
+                                        Button(role: .destructive) {
+                                            moderation.blockUser(msg.senderName)
+                                            HapticsService.shared.notification(.warning)
+                                        } label: {
+                                            Label("Block \(msg.senderName)", systemImage: "hand.raised.fill")
+                                        }
+                                    }
+                                }
                         }
                     }
                     .padding()
@@ -333,6 +380,8 @@ struct MemberRow: View {
     let canManage: Bool
     var onPromote: (() -> Void)?
     var onKick: (() -> Void)?
+    var onReport: (() -> Void)?
+    var onBlock: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -379,13 +428,21 @@ struct MemberRow: View {
 
             Spacer()
 
-            if canManage && !isCurrentPlayer && member.role == .member {
+            if !isCurrentPlayer {
                 Menu {
-                    Button(action: { onPromote?() }) {
-                        Label("Promote to Officer", systemImage: "shield.fill")
+                    if canManage && member.role == .member {
+                        Button(action: { onPromote?() }) {
+                            Label("Promote to Officer", systemImage: "shield.fill")
+                        }
+                        Button(role: .destructive, action: { onKick?() }) {
+                            Label("Kick", systemImage: "xmark.circle")
+                        }
                     }
-                    Button(role: .destructive, action: { onKick?() }) {
-                        Label("Kick", systemImage: "xmark.circle")
+                    Button(role: .destructive, action: { onReport?() }) {
+                        Label("Report Player", systemImage: "exclamationmark.triangle")
+                    }
+                    Button(role: .destructive, action: { onBlock?() }) {
+                        Label("Block Player", systemImage: "hand.raised.fill")
                     }
                 } label: {
                     Image(systemName: "ellipsis")

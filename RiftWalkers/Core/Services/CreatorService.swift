@@ -106,6 +106,12 @@ final class CreatorService: ObservableObject {
 
     // MARK: - Submit Design
 
+    struct SubmitResult {
+        let design: CreatureDesign?
+        let error: String?
+        var success: Bool { design != nil }
+    }
+
     func submitDesign(
         creatorName: String = "Player",
         name: String,
@@ -113,14 +119,38 @@ final class CreatorService: ObservableObject {
         element: Element,
         rarity: Rarity = .rare,
         description: String
-    ) -> CreatureDesign {
+    ) -> SubmitResult {
+        let moderation = ContentModerationService.shared
+
+        // Check EULA acceptance
+        guard moderation.hasAcceptedEULA else {
+            return SubmitResult(design: nil, error: "You must accept the Terms of Use before submitting content.")
+        }
+
+        // Filter creature name
+        let nameCheck = moderation.filterContent(name)
+        if !nameCheck.isClean {
+            return SubmitResult(design: nil, error: "Creature name contains inappropriate content. Please choose a different name.")
+        }
+
+        // Filter description
+        let descCheck = moderation.filterContent(description)
+        if !descCheck.isClean {
+            return SubmitResult(design: nil, error: "Description contains inappropriate content. Please revise.")
+        }
+
+        // Filter creator name
+        if !moderation.isUsernameAppropriate(creatorName) {
+            return SubmitResult(design: nil, error: "Creator name contains inappropriate content.")
+        }
+
         var design = CreatureDesign(
             creatorName: creatorName,
-            name: name,
+            name: nameCheck.filtered,
             mythology: mythology,
             element: element,
             rarity: rarity,
-            description: description
+            description: descCheck.filtered
         )
 
         // Auto-generate an art prompt from the design
@@ -129,7 +159,7 @@ final class CreatorService: ObservableObject {
         communityCreatures.append(design)
         playerDesigns.append(design)
 
-        return design
+        return SubmitResult(design: design, error: nil)
     }
 
     // MARK: - Voting

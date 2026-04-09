@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var progression = ProgressionManager.shared
+    @StateObject private var moderation = ContentModerationService.shared
 
     @Binding var isOnboardingComplete: Bool
 
@@ -19,6 +20,10 @@ struct OnboardingView: View {
     @State private var cinematicPhase = 0
     @State private var showSkip = false
     @State private var particleOffset: CGFloat = 0
+    @State private var showEULA = false
+    @State private var showTermsSheet = false
+    @State private var showPrivacySheet = false
+    @State private var usernameError = ""
 
     private let totalPages = 7 // cinematic, lore, features, name, faction, paywall, permissions
 
@@ -350,11 +355,23 @@ struct OnboardingView: View {
                     .foregroundStyle(.orange)
             }
 
+            if !usernameError.isEmpty {
+                Text(usernameError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             Spacer()
 
             OnboardingButton(title: "Next", isEnabled: username.count >= 3) {
-                progression.player.displayName = username
-                withAnimation { currentPage = 4 }
+                if ContentModerationService.shared.isUsernameAppropriate(username) {
+                    usernameError = ""
+                    progression.player.displayName = username
+                    withAnimation { currentPage = 4 }
+                } else {
+                    usernameError = "That name contains inappropriate content. Please choose another."
+                    HapticsService.shared.notification(.error)
+                }
             }
         }
         .padding()
@@ -531,17 +548,26 @@ struct OnboardingView: View {
 
             // Legal
             HStack(spacing: 16) {
-                Button("Terms") {}
+                Button("Terms of Use") { showEULA = true }
                     .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.2))
-                Button("Privacy") {}
+                    .foregroundStyle(.white.opacity(0.3))
+                Button("Privacy Policy") { showPrivacySheet = true }
                     .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.2))
-                Button("Subscription Terms") {}
+                    .foregroundStyle(.white.opacity(0.3))
+                Button("Subscription Terms") { showTermsSheet = true }
                     .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.2))
+                    .foregroundStyle(.white.opacity(0.3))
             }
             .padding(.bottom, 10)
+        }
+        .sheet(isPresented: $showEULA) {
+            EULAView(onAccept: { showEULA = false })
+        }
+        .sheet(isPresented: $showPrivacySheet) {
+            PrivacyPolicyView()
+        }
+        .sheet(isPresented: $showTermsSheet) {
+            SubscriptionTermsView()
         }
     }
 
@@ -600,9 +626,22 @@ struct OnboardingView: View {
             }
             .padding(.horizontal)
 
+            // EULA acceptance indicator
+            HStack(spacing: 8) {
+                Image(systemName: moderation.hasAcceptedEULA ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(moderation.hasAcceptedEULA ? .green : .white.opacity(0.4))
+                Button(action: { showEULA = true }) {
+                    Text(moderation.hasAcceptedEULA ? "Terms of Use Accepted" : "Accept Terms of Use (Required)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(moderation.hasAcceptedEULA ? .green : .orange)
+                        .underline(!moderation.hasAcceptedEULA)
+                }
+            }
+            .padding(.top, 8)
+
             Spacer()
 
-            OnboardingButton(title: "Start Exploring!") {
+            OnboardingButton(title: "Start Exploring!", isEnabled: moderation.hasAcceptedEULA) {
                 LocationService.shared.requestAuthorization()
                 progression.processLogin()
                 AICompanionService.shared.onFirstLaunch()
@@ -736,5 +775,107 @@ struct PermissionRow: View {
         }
         .padding()
         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Privacy Policy View
+
+struct PrivacyPolicyView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Privacy Policy")
+                        .font(.title2.weight(.bold))
+                    Text("Last Updated: April 8, 2026")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Group {
+                        policySection("Information We Collect",
+                            "We collect: device identifiers for account management, location data for gameplay features, gameplay progress for cloud saves, and optional health data (steps) for fitness features. We do not collect real names, email addresses, or payment information directly.")
+                        policySection("How We Use Your Data",
+                            "Your data is used to: provide location-based gameplay, save and sync your progress across devices, enable social features like guilds and trading, and improve the game experience. We do not sell your personal data to third parties.")
+                        policySection("Data Storage",
+                            "Gameplay data is stored on our secure cloud servers (Cloudflare). Local data is stored on your device. All network communications use HTTPS encryption.")
+                        policySection("Third-Party Services",
+                            "We use Apple's StoreKit for purchases, ElevenLabs for voice synthesis, and OpenAI for AI companion features. These services have their own privacy policies.")
+                        policySection("Data Deletion",
+                            "You can delete your account and all associated data at any time through Profile > Delete Account. Deletion is permanent and cannot be undone.")
+                        policySection("Children's Privacy",
+                            "RiftWalkers GO does not knowingly collect personal information from children under 13. If we discover we have collected data from a child under 13, we will delete it immediately.")
+                        policySection("Contact",
+                            "For privacy concerns, contact support@riftwalkers.app.")
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Privacy Policy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func policySection(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.headline.weight(.bold))
+            Text(body).font(.subheadline).foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Subscription Terms View
+
+struct SubscriptionTermsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Subscription Terms")
+                        .font(.title2.weight(.bold))
+                    Text("Last Updated: April 8, 2026")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Group {
+                        termSection("Rift Walker Plus Subscription",
+                            "Rift Walker Plus is an auto-renewable subscription that provides premium benefits including unlimited AI creature card generation, a voice-guided companion, daily gem bonuses, 2x XP boost, exclusive creatures, and priority PvP matchmaking.")
+                        termSection("Pricing",
+                            "Monthly: $4.99/month with a 7-day free trial for new subscribers.")
+                        termSection("Free Trial",
+                            "New subscribers receive a 7-day free trial. You will not be charged during the trial period. If you do not cancel before the trial ends, your subscription will automatically begin and you will be charged $4.99.")
+                        termSection("Renewal",
+                            "Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period.")
+                        termSection("Managing Your Subscription",
+                            "You can manage or cancel your subscription at any time in your Apple ID Settings > Subscriptions. Cancellation takes effect at the end of the current billing period.")
+                        termSection("Refunds",
+                            "All purchases are processed by Apple. For refund requests, contact Apple Support or visit reportaproblem.apple.com.")
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Subscription Terms")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func termSection(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.headline.weight(.bold))
+            Text(body).font(.subheadline).foregroundStyle(.secondary)
+        }
     }
 }

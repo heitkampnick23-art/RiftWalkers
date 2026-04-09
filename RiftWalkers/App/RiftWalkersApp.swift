@@ -9,6 +9,7 @@ struct RiftWalkersApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @StateObject private var progression = ProgressionManager.shared
     @StateObject private var persistence = GamePersistenceService.shared
+    @StateObject private var moderation = ContentModerationService.shared
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +17,7 @@ struct RiftWalkersApp: App {
                 MainTabView()
                     .preferredColorScheme(.dark)
                     .environmentObject(persistence)
+                    .environmentObject(moderation)
                     .onAppear {
                         progression.processLogin()
                         Task {

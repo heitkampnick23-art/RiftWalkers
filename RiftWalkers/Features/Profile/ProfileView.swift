@@ -422,6 +422,10 @@ struct SettingsView: View {
     @StateObject private var ai = AIContentService.shared
     @State private var apiKeyInput = ""
     @State private var showAPIKeySaved = false
+    @State private var showDeleteConfirm = false
+    @State private var showDeleteComplete = false
+    @State private var showEULA = false
+    @State private var showPrivacy = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -481,9 +485,30 @@ struct SettingsView: View {
                     Text("AI creature art is powered by RiftWalkers Cloud by default. Optionally use your own OpenAI key for unlimited generation.")
                 }
 
+                Section("Safety & Privacy") {
+                    NavigationLink {
+                        BlockedUsersView()
+                    } label: {
+                        Label("Blocked Users", systemImage: "hand.raised.fill")
+                    }
+
+                    Button(action: { showEULA = true }) {
+                        Label("Terms of Use", systemImage: "doc.text")
+                    }
+
+                    Button(action: { showPrivacy = true }) {
+                        Label("Privacy Policy", systemImage: "lock.shield")
+                    }
+                }
+
                 Section("Account") {
                     Button("Sign Out") {}
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.orange)
+
+                    Button(role: .destructive, action: { showDeleteConfirm = true }) {
+                        Label("Delete Account", systemImage: "trash")
+                            .foregroundStyle(.red)
+                    }
                 }
 
                 Section("About") {
@@ -501,6 +526,35 @@ struct SettingsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .alert("Delete Account?", isPresented: $showDeleteConfirm) {
+                Button("Delete Everything", role: .destructive) {
+                    Task {
+                        let success = await ContentModerationService.shared.requestAccountDeletion()
+                        if success {
+                            await MainActor.run {
+                                showDeleteComplete = true
+                            }
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete your account, all creatures, progress, and purchases. This action cannot be undone.")
+            }
+            .alert("Account Deleted", isPresented: $showDeleteComplete) {
+                Button("OK") {
+                    UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+                    dismiss()
+                }
+            } message: {
+                Text("Your account and all data have been deleted.")
+            }
+            .sheet(isPresented: $showEULA) {
+                EULAView(onAccept: { showEULA = false })
+            }
+            .sheet(isPresented: $showPrivacy) {
+                PrivacyPolicyView()
             }
         }
     }
