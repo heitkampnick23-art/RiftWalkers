@@ -10,5 +10,11 @@
 	</array>
 	<key>com.apple.developer.game-center</key>
 	<true/>
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
+	<key>com.apple.developer.weatherkit</key>
+	<true/>
 </dict>
 </plist>

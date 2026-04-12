@@ -28,5 +28,17 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Discover mythological creatures and territories near you</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Track distance walked to hatch eggs and earn rewards</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Encounter creatures in augmented reality</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Sync steps and distance to hatch eggs and earn XP</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Talk to your AI companion Professor Valen</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Track your movement to discover nearby creatures</string>
 </dict>
 </plist>
