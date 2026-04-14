@@ -15,6 +15,8 @@ struct ShopView: View {
     @State private var showGachaPull = false
     @State private var gachaPullCount = 1
     @State private var gachaResults: [(rarity: Rarity, species: CreatureSpecies?)] = []
+    @State private var showTermsSheet = false
+    @State private var showPrivacySheet = false
 
     enum ShopTab: String, CaseIterable {
         case featured = "Featured"
@@ -68,6 +70,12 @@ struct ShopView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showGachaPull) {
                 GachaPullResultView(results: gachaResults)
+            }
+            .sheet(isPresented: $showTermsSheet) {
+                EULAView(onAccept: { showTermsSheet = false })
+            }
+            .sheet(isPresented: $showPrivacySheet) {
+                PrivacyPolicyView()
             }
         }
     }
@@ -127,35 +135,37 @@ struct ShopView: View {
     private var featuredTab: some View {
         VStack(spacing: 16) {
             // Daily deal banner
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(
-                        LinearGradient(
-                            colors: [.orange, .red, .purple],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
+            Button(action: { purchaseStarterPack() }) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange, .red, .purple],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(height: 140)
+                        .frame(height: 140)
 
-                VStack(spacing: 8) {
-                    Text("DAILY DEAL")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(.white.opacity(0.7))
-                    Text("Starter Adventurer Pack")
-                        .font(.title3.weight(.black))
-                        .foregroundStyle(.white)
-                    Text("300 Gems + 5000 Gold + 10 Great Spheres")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-
-                    HStack(spacing: 4) {
-                        Text("$4.99")
-                            .font(.headline.weight(.black))
+                    VStack(spacing: 8) {
+                        Text("DAILY DEAL")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Text("Starter Adventurer Pack")
+                            .font(.title3.weight(.black))
                             .foregroundStyle(.white)
-                        Text("$9.99")
+                        Text("300 Gems + 5000 Gold + 10 Great Spheres")
                             .font(.caption)
-                            .strikethrough()
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(.white.opacity(0.8))
+
+                        HStack(spacing: 4) {
+                            Text("$4.99")
+                                .font(.headline.weight(.black))
+                                .foregroundStyle(.white)
+                            Text("$9.99")
+                                .font(.caption)
+                                .strikethrough()
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
                     }
                 }
             }
@@ -432,6 +442,35 @@ struct ShopView: View {
             }
             .padding(.horizontal)
 
+            // Subscription disclosure (Apple Guideline 3.1.2(c))
+            if !ProgressionManager.shared.player.battlePassPremium {
+                VStack(spacing: 6) {
+                    Text("Rift Walker Plus — Auto-Renewable Subscription")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                    Text("$4.99/month • Renews automatically • Cancel anytime")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.4))
+                    HStack(spacing: 16) {
+                        Button(action: { showTermsSheet = true }) {
+                            Text("Terms of Use")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.cyan)
+                        }
+                        Button(action: { showPrivacySheet = true }) {
+                            Text("Privacy Policy")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.cyan)
+                        }
+                        Link("Subscription Terms",
+                             destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.cyan)
+                    }
+                }
+                .padding(.horizontal)
+            }
+
             // Tier reward preview
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -452,13 +491,41 @@ struct ShopView: View {
     }
 
     private func purchaseBattlePass() {
-        // Try real IAP first, fall back to gem purchase for testing
+        // Try real IAP first
+        if let product = economy.availableProducts.first(where: { $0.id == EconomyManager.ProductIDs.battlePassPremium }) {
+            Task {
+                do {
+                    _ = try await economy.purchase(product)
+                } catch {
+                    // Fallback to gem purchase
+                    await MainActor.run { fallbackBattlePassPurchase() }
+                }
+            }
+        } else {
+            fallbackBattlePassPurchase()
+        }
+    }
+
+    private func fallbackBattlePassPurchase() {
         if economy.spend(gems: 980) {
             ProgressionManager.shared.player.battlePassPremium = true
             HapticsService.shared.notification(.success)
             AudioService.shared.playSFX(.rareDrop)
         } else {
             HapticsService.shared.notification(.error)
+        }
+    }
+
+    private func purchaseStarterPack() {
+        if let product = economy.availableProducts.first(where: { $0.id == EconomyManager.ProductIDs.starterPack }) {
+            Task {
+                _ = try? await economy.purchase(product)
+            }
+        } else {
+            // Fallback: award items directly for testing
+            economy.earn(gold: 5000, gems: 300)
+            HapticsService.shared.notification(.success)
+            AudioService.shared.playSFX(.rareDrop)
         }
     }
 

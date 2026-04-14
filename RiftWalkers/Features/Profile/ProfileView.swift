@@ -518,6 +518,23 @@ struct SettingsView: View {
                         Text("1.0.0")
                             .foregroundStyle(.secondary)
                     }
+
+                    // Apple Weather attribution (Guideline 5.2.5)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "cloud.sun.fill")
+                                .foregroundStyle(.blue)
+                            Text("Weather data powered by")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(" Weather")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.primary)
+                        }
+                        Link("Apple Weather Legal Attribution",
+                             destination: URL(string: "https://weatherkit.apple.com/legal-attribution.html")!)
+                            .font(.caption)
+                    }
                 }
             }
             .navigationTitle("Settings")

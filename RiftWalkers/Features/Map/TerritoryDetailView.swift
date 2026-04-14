@@ -24,6 +24,21 @@ struct TerritoryDetailView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .alert(territory.controllingGuildID == nil ? "Claim Territory?" : "Attack Territory?", isPresented: $showClaimConfirm) {
+                Button(territory.controllingGuildID == nil ? "Claim" : "Attack", role: .destructive) {
+                    claimOrAttackTerritory()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(territory.controllingGuildID == nil
+                    ? "Deploy your creatures to claim \(territory.name) and start earning resources."
+                    : "Battle the defenders to take control of \(territory.name).")
+            }
+            .alert("Territory", isPresented: $showClaimResult) {
+                Button("OK") {}
+            } message: {
+                Text(claimResult ?? "")
+            }
         }
     }
 
@@ -185,6 +200,9 @@ struct TerritoryDetailView: View {
                 .padding(.vertical)
     }
 
+    @State private var claimResult: String?
+    @State private var showClaimResult = false
+
     private var territoryIcon: String {
         switch territory.type {
         case .riftNode: return "bolt.circle.fill"
@@ -212,6 +230,42 @@ struct TerritoryDetailView: View {
         case .forge: return "flame.fill"
         case .vault: return "lock.shield.fill"
         }
+    }
+
+    private func claimOrAttackTerritory() {
+        let progression = ProgressionManager.shared
+        let creatures = progression.ownedCreatures
+
+        if creatures.isEmpty {
+            claimResult = "You need at least one creature to claim a territory. Explore the map and catch some creatures first!"
+            showClaimResult = true
+            return
+        }
+
+        // Simulate claiming/attacking
+        if territory.controllingGuildID == nil {
+            // Claim unclaimed territory
+            economy.earn(gold: territory.resources.goldPerHour * 2)
+            progression.awardXP(amount: 200, source: .territoryCapture)
+            HapticsService.shared.territoryCapture()
+            AudioService.shared.playSFX(.territoryCapture)
+            claimResult = "You claimed \(territory.name)! You'll earn \(territory.resources.goldPerHour) Gold/hr, \(territory.resources.essencePerHour) Essence/hr, and \(territory.resources.riftDustPerHour) Rift Dust/hr."
+        } else {
+            // Attack territory
+            let success = Double.random(in: 0...1) > 0.4
+            if success {
+                economy.earn(gold: territory.resources.goldPerHour * 3)
+                progression.awardXP(amount: 350, source: .territoryCapture)
+                HapticsService.shared.territoryCapture()
+                AudioService.shared.playSFX(.territoryCapture)
+                claimResult = "Victory! You conquered \(territory.name) from the defenders!"
+            } else {
+                progression.awardXP(amount: 50, source: .battleWin)
+                HapticsService.shared.captureFailure()
+                claimResult = "The defenders held their ground. Level up your creatures and try again!"
+            }
+        }
+        showClaimResult = true
     }
 }
 
